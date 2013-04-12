@@ -8,6 +8,26 @@
  */
 
 /**
+ * @TODO:
+ *   * convert Drupal html pages into text and save into entity
+ *   * duplicates entities are ignored
+ *   * entities are grouped by the menu callback and page arguments
+ *   * send notications about the changes and post the one-time login link (to approve the changes)
+ *   * user selects the following options:
+ *     * Approve the change and set the page as default
+ *     * Mark that change as dynamic (ignore it in the future)
+ *     * Mark as regression
+ *     * Mark as blocked
+ *     * Mark as broken
+ *   * create the view list with all regressions, blockers and broken pages
+ *     * show the date, when last time it was working
+ *   * configure e-mail content in admin panel
+ *   * when content is marked as dynamic, find the right regex/pattern to ignore similar change in the future
+ *   * dynamic page arguments can be configured as dynamic, so threated as the same page
+ *
+ */
+
+/**
  * Include for the Regression feature.
  */
 // include_once 'regression.features.inc';
@@ -85,7 +105,11 @@ function regression_flush_caches() {
  * Implements hook_exit().
  */
 function regression_exit() {
-  $data = ob_get_contents();
-  // TODO: do some processing here
+  $html = ob_get_contents();
+  // $text = html2txt_convert($html);
+  // @TODO:
+  //  * save text into new entity (revisioned)
+  //  * if entity content (text) is already saved, do not add (just update the update date),
+  //  * if entity content (text) is already saved in different revision, set as default
 }
 

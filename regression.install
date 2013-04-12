@@ -1,0 +1,33 @@
+<?php
+
+/**
+ * @file
+ *   Regression installation file.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function regression_install() {
+}
+
+/**
+ * Implements hook_install().
+ */
+function regression_uninstall() {
+  // Clear the variables
+  db_delete('variable')
+    ->condition('name', 'regression_%', 'LIKE') // FIXME: what about regression_remote vars?
+      ->execute();
+}
+
+/**
+ * Implements hook_schema().
+ */
+function regression_schema() {
+  $schema = array();
+  $schema['cache_regression'] = drupal_get_schema_unprocessed('system', 'cache');
+  $schema['cache_regression']['description'] = 'Generic cache table for caching regression module data.';
+  return $schema;
+}
+

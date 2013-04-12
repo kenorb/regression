@@ -1,0 +1,91 @@
+<?php
+
+/**
+ * Regression module
+ *
+ * @file
+ *   Main module file.
+ */
+
+/**
+ * Include for the Regression feature.
+ */
+// include_once 'regression.features.inc';
+
+/**
+ * Implements hook_init().
+ */
+function regression_init() {
+  $path = drupal_get_path('module', 'regression');
+}
+
+/**
+ * Implements hook_menu().
+ */
+function regression_menu() {
+  $items = array();
+
+  /*
+  // Settings form.
+  $items['admin/config/regression'] =
+  $items['admin/config/regression/settings'] = array(
+    'title' => 'regression',
+    'description' => 'regression configuration',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('regression_settings'),
+    'file' => 'includes/regression.admin.inc',
+    'access arguments' => array('regression administration'),
+    'type' => MENU_NORMAL_ITEM,
+    'weight' => -20,
+  );
+  
+  $items['admin/config/regression/settings/regression'] = array(
+    'title' => 'regression',
+    'access arguments' => array('regression administration'),
+    'file' => 'includes/regression.admin.inc',
+    'access arguments' => array('regression administration'),
+    'weight' => -20,
+    'type' => MENU_DEFAULT_LOCAL_TASK,
+  );
+  */
+
+  return $items;
+}
+
+/**
+ * Implements hook_help().
+ */
+function regression_help($path, $args) {
+  if ($path == 'admin/help#regression') {
+    $out = '<p>' . t('Regression module help.') . '</p>';
+    return $out;
+  }
+}
+
+/**
+ * Implements hook_permission().
+ */
+function regression_permission() {
+  return array(
+    'regression administration' => array(
+      'title' => t('Administer Regression module'),
+      'description' => t('Perform administration tasks for Regression module.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_flush_caches().
+ */
+function regression_flush_caches() {
+  return array('cache_regression');
+}
+
+/**
+ * Implements hook_exit().
+ */
+function regression_exit() {
+  $data = ob_get_contents();
+  // TODO: do some processing here
+}
+

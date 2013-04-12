@@ -17,8 +17,14 @@
  *     * Approve the change and set the page as default
  *     * Mark that change as dynamic (ignore it in the future)
  *     * Mark as regression
- *     * Mark as blocked
  *     * Mark as broken
+ *   * description of approval or disapproval can be configured as required or not (fieldable entity)
+ *   * description of approval or disapproval can contain
+ *     * description
+ *     * priority (minor, major, blocker)
+ *     * module name (optional)
+ *     * URL for bug tracker
+ *     * assignee (responsible responsible)
  *   * create the view list with all regressions, blockers and broken pages
  *     * show the date, when last time it was working
  *   * configure e-mail content in admin panel

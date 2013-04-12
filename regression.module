@@ -24,6 +24,7 @@
  *   * configure e-mail content in admin panel
  *   * when content is marked as dynamic, find the right regex/pattern to ignore similar change in the future
  *   * dynamic page arguments can be configured as dynamic, so threated as the same page
+ *   * add drush command to list all regressions, blockers and broken pages (one per line, return empty content if none)
  *
  */
 

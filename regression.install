@@ -18,7 +18,9 @@ function regression_uninstall() {
   // Clear the variables
   db_delete('variable')
     ->condition('name', 'regression_%', 'LIKE') // FIXME: what about regression_remote vars?
-      ->execute();
+    ->execute();
+
+  db_drop_table('cache_regression');
 }
 
 /**
@@ -28,6 +30,212 @@ function regression_schema() {
   $schema = array();
   $schema['cache_regression'] = drupal_get_schema_unprocessed('system', 'cache');
   $schema['cache_regression']['description'] = 'Generic cache table for caching regression module data.';
+  
+  $schema['regression_path_configuration'] = array(
+    'description' => 'Regression path configuration',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'ID of the record',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'ready' => array(
+        'description' => 'Indicates if path is ready for regression testing',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'default'     => '0',
+      ),
+      'enabled' => array(
+        'description' => 'Indicates if path is enabled for regression testing',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'default'     => '1',
+      ),
+      'visible' => array(
+        'description' => 'Indicates if path is visible in the paths list',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'default'     => '1',
+      ),
+      'path' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+/*
+      'key_override' => array(
+        'description' => 'Indicates if global key options should be overriden by custom ones',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'key' => array(
+        'description' => 'Built-in key segments configurations in JSON format',
+        'type'        => 'text',
+      ),
+*/
+      'settings' => array(
+        'description' => 'Path configuration in JSON format',
+        'type'        => 'text',
+        'size'        => 'medium',
+      ),
+/*
+      'notifications_override' => array(
+        'description' => 'Indicates if global notification options should be overriden by custom ones',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'notifications_emails' => array(
+        'description' => 'List of e-mails separated by newline character',
+        'type'        => 'text',
+      ),
+*/
+      'created' => array(
+        'description' => 'The Unix timestamp when the record was created.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes' => array(
+      'index_path'                 => array('path'),
+    )
+  );
+  
+  
+  $schema['regression_revision'] = array(
+    'description' => 'Regression entry revisions',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'ID of the record',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'entry_id' => array(
+        'description' => 'ID of the related entry',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'revision_id' => array(
+        'description' => 'ID of the related entry',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'path' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'uri' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'path_args' => array(
+        'description' => 'Page callback arguments values',
+        'type'        => 'text',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the record was created.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+      'updated' => array(
+        'description' => 'The Unix timestamp when the record was updated.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+      'parser_value_html' => array(
+        'description' => 'Source parser value: Original HTML source',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_html_diff' => array(
+        'description' => 'Diff of html source parser',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_plain_text' => array(
+        'description' => 'Source parser value: Plain Text format',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_plain_text_diff' => array(
+        'description' => 'Diff of plain text source parser',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_markdown' => array(
+        'description' => 'Source parser value: Markdown format',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes'     => array(
+      'index_path'          => array('path'),
+      'index_entry_id'      => array('entry_id'),
+    )
+  );
+  
+  $schema['regression_entry'] = array(
+    'description' => 'Regression entry',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'ID of the record',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'key_hash' => array(
+        'description' => 'Unique entry key based on the SHA1 sum of hook_regression_build_key function result',
+        'type'        => 'varchar',
+        'length'      => 40
+      ),
+      'path' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'path_args' => array(
+        'description' => 'Page callback arguments values',
+        'type'        => 'text',
+      ),
+      'path_dynamic_args' => array(
+        'description' => 'List of dynamic arguments indexes',
+        'type'        => 'varchar',
+        'length'      => 32,
+      ),
+      'user_role_ids' => array(
+        'description' => 'User role IDs',
+        'type'        => 'varchar',
+        'length'      => 32,
+      ),
+      'current_revision_id' => array(
+        'description' => 'Current revision PID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the record was created.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes' => array(
+      'index_path'                => array('path'),
+      'index_key_hash'            => array('key_hash'),
+      'index_current_revision_id' => array('current_revision_id'),
+    )
+  );
+  
   return $schema;
 }
 

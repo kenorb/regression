@@ -6,31 +6,34 @@
  * @file
  *   Main module file.
  */
+ 
+ require_once 'includes/regression.regression_entry.inc';
+ require_once 'includes/regression.regression_revision.inc';
 
 /**
  * @TODO:
- *   * convert Drupal html pages into text and save into entity
- *   * duplicates entities are ignored
- *   * entities are grouped by the menu callback and page arguments
- *   * send notications about the changes and post the one-time login link (to approve the changes)
- *   * user selects the following options:
- *     * Approve the change and set the page as default
- *     * Mark that change as dynamic (ignore it in the future)
- *     * Mark as regression
- *     * Mark as broken
- *   * description of approval or disapproval can be configured as required or not (fieldable entity)
- *   * description of approval or disapproval can contain
- *     * description
- *     * priority (minor, major, blocker)
- *     * module name (optional)
- *     * URL for bug tracker
- *     * assignee (responsible responsible)
- *   * create the view list with all regressions, blockers and broken pages
- *     * show the date, when last time it was working
- *   * configure e-mail content in admin panel
- *   * when content is marked as dynamic, find the right regex/pattern to ignore similar change in the future
- *   * dynamic page arguments can be configured as dynamic, so threated as the same page
- *   * add drush command to list all regressions, blockers and broken pages (one per line, return empty content if none)
+ *   [ ] convert Drupal html pages into text and save into entity
+ *   [ ] duplicates entities are ignored
+ *   [ ] entities are grouped by the menu callback and page arguments
+ *   [ ] send notications about the changes and post the one-time login link (to approve the changes)
+ *   [ ] user selects the following options:
+ *     [ ] Approve the change and set the page as default
+ *     [ ] Mark that change as dynamic (ignore it in the future)
+ *     [ ] Mark as regression
+ *     [ ] Mark as broken
+ *   [ ] description of approval or disapproval can be configured as required or not (fieldable entity)
+ *   [ ] description of approval or disapproval can contain
+ *     [ ] description
+ *     [ ] priority (minor, major, blocker)
+ *     [ ] module name (optional)
+ *     [ ] URL for bug tracker
+ *     [ ] assignee (responsible responsible)
+ *   [ ] create the view list with all regressions, blockers and broken pages
+ *     [ ] show the date, when last time it was working
+ *   [X] configure e-mail content in admin panel
+ *   [ ] when content is marked as dynamic, find the right regex/pattern to ignore similar change in the future
+ *   [ ] dynamic page arguments can be configured as dynamic, so threated as the same page
+ *   [ ] add drush command to list all regressions, blockers and broken pages (one per line, return empty content if none)
  *
  */
 
@@ -50,33 +53,513 @@ function regression_init() {
  * Implements hook_menu().
  */
 function regression_menu() {
-  $items = array();
-
-  /*
-  // Settings form.
-  $items['admin/config/regression'] =
-  $items['admin/config/regression/settings'] = array(
-    'title' => 'regression',
-    'description' => 'regression configuration',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('regression_settings'),
-    'file' => 'includes/regression.admin.inc',
+  regression_regression_entry_menu($menu);
+  regression_regression_revision_menu($menu);
+  
+  $menu['admin/config/regression'] = array(
+    'file'             => 'includes/regression.admin.paths.inc',
+    'title'            => 'Regression settings',
+    'position'         => 'left',
+    'weight'           => -20,
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_paths_form'),
     'access arguments' => array('regression administration'),
-    'type' => MENU_NORMAL_ITEM,
-    'weight' => -20,
+    'expanded'         => TRUE,
+  );
+
+  $menu['admin/config/regression/paths'] = array(
+    'type'             => MENU_NORMAL_ITEM | MENU_DEFAULT_LOCAL_TASK,
+    'file'             => 'includes/regression.admin.paths.inc',
+    'title'            => 'Paths',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_paths_form'),
+    'access arguments' => array('regression administration'),
+    'weight'           => -5,
   );
   
-  $items['admin/config/regression/settings/regression'] = array(
-    'title' => 'regression',
+  $menu['admin/config/regression/advanced'] = array(
+    'type'             => MENU_NORMAL_ITEM | MENU_LOCAL_TASK,
+    'file'             => 'includes/regression.admin.advanced.inc',
+    'title'            => 'Advanced settings',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_advanced_form'),
     'access arguments' => array('regression administration'),
-    'file' => 'includes/regression.admin.inc',
-    'access arguments' => array('regression administration'),
-    'weight' => -20,
-    'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight'           => -4,
   );
-  */
 
-  return $items;
+
+  $menu['admin/config/regression/paths/add'] = array(
+    'file'             => 'includes/regression.admin.paths.edit.inc',
+    'title'            => 'Adding path for regression, step 1/2',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_paths_add_form'),
+    'access arguments' => array('regression administration'),
+  );
+  
+  $menu['admin/config/regression/paths/default'] = array(
+    'file'             => 'includes/regression.admin.paths.edit.inc',
+    'title'            => 'Editing default regression settings',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_paths_edit_form'),
+    'access arguments' => array('regression administration'),
+  );
+  
+  $menu['admin/config/regression/paths/%'] = array(
+    'file'             => 'includes/regression.admin.paths.edit.inc',
+    'title'            => 'Editing regression path settings',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_paths_edit_form'),
+    'access arguments' => array('regression administration'),
+  );
+  
+  $menu['admin/config/regression/take-action/%'] = array(
+    'file'             => 'includes/regression.admin.take.action.inc',
+    'title'            => 'Approve or disapprove changes',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_take_action_form'),
+    'access arguments' => array('regression administration'),
+  );
+  
+  return $menu;
+}
+
+/**
+ * Returns list of configured pages including their configuration.
+ */
+function regression_paths_configured() {
+  
+  $records = db_select('regression_path_configuration')
+    ->fields('regression_path_configuration', array('pid', 'path', 'enabled'))
+    ->condition('visible', '1')
+    ->orderBy('path')
+    ->execute()
+    ->fetchAll();
+
+  foreach ($records as &$record) {
+    $record = (array)$record;
+    $record['features'] = '';
+  }
+  
+  return $records;
+}
+
+/**
+ * Implements hook_entity_info().
+ */
+function regression_entity_info() {
+  $info = array();
+  regression_regression_entry_entity_info($info);
+  regression_regression_revision_entity_info($info);
+  return $info;
+}
+
+/**
+ * Returns regression path configuration array.
+ * 
+ * @param string $path_pattern
+ *   Menu path pattern.
+ * @param boolean $include_default_settings
+ *   Indicates if configuration should be merged with default settings.
+ * @return array
+ */
+function regression_get_path_configuration($path_pattern, $include_default_settings = FALSE) {
+  $record = db_select('regression_path_configuration', 'RC')
+    ->fields('RC', array('settings', 'enabled'))
+    ->condition('path', $path_pattern)
+    ->range(0, 1)
+    ->execute()
+    ->fetchAssoc();
+  
+  $settings = json_decode($record['settings'], TRUE);
+  
+  if (isset($settings['notifications_email_recipients'])) {
+    
+    $settings['notifications_email_recipients'] =
+      explode("\n", $settings['notifications_email_recipients']);
+    
+    // Removing empty emails.
+    foreach ($settings['notifications_email_recipients'] as $index => &$recipient) {
+      $recipient = trim($recipient);
+      if (empty($recipient)) {
+        unset($settings['notifications_email_recipients'][$index]);
+      }
+    }
+  }
+  
+  if ($include_default_settings && $path_pattern !== '__default') {
+    
+    $parent_settings = regression_get_path_configuration('__default');  
+    
+    // Merging configuration.
+    
+    $settings['notifications_email_regression_template'] =
+      isset($parent_settings['notifications_email_regression_template']) ?
+      $parent_settings['notifications_email_regression_template'] : ''; 
+    
+    if (empty($settings['override_default_notifications_email_recipients'])) {
+      // Merging email recipients.
+      
+      $settings['notifications_email_recipients'] = array_merge(
+        isset($settings['notifications_email_recipients']) ? $settings['notifications_email_recipients'] : array(),
+        isset($parent_settings['notifications_email_recipients']) ? $parent_settings['notifications_email_recipients'] : array()
+      );
+    }
+  }
+  
+  $settings['enabled'] = $record['enabled'];
+  
+  return $settings;
+}
+
+/**
+ * Creates or updates regression path configuration.
+ * 
+ * @param string $path_pattern
+ *   Menu path pattern.
+ * @param array $configuration
+ *   Initial configuration array.
+ */
+function regression_set_path_configuration($path_pattern, $configuration) {
+  $records = db_select('regression_path_configuration')
+    ->fields('regression_path_configuration', array('pid'))
+    ->condition('path', $path_pattern)
+    ->range(0, 1)
+    ->execute()
+    ->fetchField();
+  
+  if ($records) {
+    // Path is already configured.
+    $query = db_update('regression_path_configuration');
+    $query->condition('path', $path_pattern);
+  }
+  else {
+    // Path not yet configured.
+    $query = db_insert('regression_path_configuration');
+  }
+  
+  if (isset($configuration['notifications_email_recipients'])) {
+    $configuration['notifications_email_recipients'] =
+      implode("\n", $configuration['notifications_email_recipients']);
+  }
+  
+  // Checking if path is ready to be tested for regression.
+  $ready = !empty($configuration['key_segments_enabled']);
+  
+  $query->fields(array(
+    'path'     => $path_pattern,
+    'settings' => json_encode($configuration),
+    'enabled'  => '1',
+    'ready'    => $ready ? '1' : '0',
+    'visible'  => $path_pattern == '__default' ? '0' : '1',
+    'created'  => REQUEST_TIME,
+  )) ->execute();
+    
+  return TRUE;
+}
+
+/**
+ * Returns key built using path configuration.
+ */
+function regression_build_key($configuration) {
+  
+  $key = array();
+  
+  if (!isset($configuration['key_segments_enabled'])) {
+    // No key segments enabled
+    $key[] = 'None';
+  }
+  else {
+  
+    $key_segments = regression_keys();
+    
+    foreach ($configuration['key_segments_enabled'] as $name => $enabled) {
+      
+      if (!$enabled)
+        continue;
+      
+      $key[] = call_user_func_array($key_segments[$name]['callback'], array(
+        isset($configuration['key_segments'][$name]) ? $configuration['key_segments'][$name] : array()
+      ));
+    }
+  }
+  
+  return sha1(implode('$', $key));
+}
+
+/**
+ * Hook that provides regression keys to use with single path configuration.
+ */
+function regression_keys() {
+  $keys = array(
+    'builtin-domain' => array(
+      'title'    => t('Domain'),
+      'callback' => 'regression_regression_key_domain',
+      'default'  => TRUE,
+    ),
+    'builtin-site-name' => array(
+      'title'    => t('Site name'),
+      'callback' => 'regression_regression_key_site_name',
+      'default'  => TRUE,
+    ),
+    'builtin-page-path' => array(
+      'title'    => t('Menu path'),
+      'callback' => 'regression_regression_key_menu_path',
+      'default'  => TRUE,
+    ),
+    'builtin-page-arguments' => array(
+      'title'    => t('Page arguments'),
+      'callback' => 'regression_regression_key_page_arguments',
+      'default'  => TRUE,
+      'form'     => 'regression_paths_edit_page_arguments_form',
+    ),
+    'builtin-page-callback-name' => array(
+      'title'    => t('Menu callback name'),
+      'callback' => 'regression_regression_key_menu_callback_name',
+      'default'  => TRUE,
+    ),
+    'builtin-user-roles-ids' => array(
+      'title'    => t('User roles (IDs)'),
+      'callback' => 'regression_regression_key_user_roles_ids',
+      'default'  => TRUE,
+    ),
+  );
+  
+  return array_merge($keys, module_invoke_all('regression_keys'));
+}
+
+/**
+ * Key segment callback of "Has unique domain".
+ * @param array $settings
+ *   Key segment settings.
+ * @return string
+ *   Stringified version of the key.
+ */
+function regression_regression_key_domain($settings) {
+  if (!isset($_SERVER['HTTP_HOST'])) {
+    return 'Unknown';
+  }
+  
+  return preg_replace('`^www.`', '', $_SERVER['HTTP_HOST']);
+}
+
+/**
+ * Key segment callback of "Has unique site name".
+ * @param array $settings
+ *   Key segment settings.
+ * @return string
+ *   Stringified version of the key.
+ */
+function regression_regression_key_site_name($settings) {
+  return variable_get('site_name');
+}
+
+/**
+ * Key segment callback of "Has unique menu path".
+ * @param array $settings
+ *   Key segment settings.
+ * @return string
+ *   Stringified version of the key.
+ */
+function regression_regression_key_menu_path($settings) {
+  $menu_item = menu_get_item(request_path());
+  return $menu_item['path'];
+}
+
+/**
+ * Key segment callback of "Has unique page arguments".
+ * @param array $settings
+ *   Key segment settings.
+ * @return string
+ *   Stringified version of the key.
+ */
+function regression_regression_key_page_arguments($settings) {
+  
+  $menu_item              = menu_get_item(request_path());
+  $menu_path              = $menu_item['path'];
+  $menu_path_segments     = explode('/', $menu_path);
+  $num_menu_path_segments = count($menu_path_segments);
+  $num_args               = count(arg());
+  $result                 = array();
+  $arg_counter            = 0;
+  
+  for ($arg_i = 0; $arg_i < $num_args; ++$arg_i) {
+    
+    if ($arg_i > $num_menu_path_segments - 1) {
+      // No more custom parameters
+      $result[] = arg($arg_i);
+    }
+    else {
+      if ($menu_path_segments[$arg_i] == '%') {
+        
+        // Checking if arguments isn't ingored.
+        if (isset($settings['uniques'][$arg_counter])) {
+          $result[] = arg($arg_i);
+        }
+        
+        ++$arg_counter;
+      }
+    }
+    
+  }
+  
+  return implode(',', $result);
+}
+
+/**
+ * Key segment callback of "Has unique menu callback name".
+ * @param array $settings
+ *   Key segment settings.
+ * @return string
+ *   Stringified version of the key.
+ */
+function regression_regression_key_menu_callback_name($settings) {
+  $menu_item = menu_get_item(request_path());
+  return $menu_item['page_callback'];
+}
+
+function regression_regression_key_user_roles_ids($settings) {
+  global $user;
+  return implode(',', $user->roles);
+}
+
+/**
+ * Implements hook_replacement_patterns_list().
+ */
+function regression_replacement_patterns_list(RegressionRevision $revision = NULL) {
+  // [regression:datetime]
+  $patterns['regression:datetime'] = array(
+    'title'   => t('Date and time the page has changed.'),
+    'example' => '20/11/' . date('Y H:i:s'),
+  );
+  
+  if ($revision !== NULL) {
+    $patterns['regression:datetime']['value'] = date('d/m/Y H:i:s', $revision -> updated);
+  }
+
+  // [regression:page-url]
+  $patterns['regression:page-url'] = array(
+    'title'   => t('URL of the page that has changed.'),
+    'example' => l('node/30/edit', 'node/30/edit'),
+  );
+
+  if ($revision !== NULL) {
+    $patterns['regression:page-url']['value'] = l($revision->uri, $revision->uri);
+  }
+
+  // [regression:menu-path]
+  $patterns['regression:menu-path'] = array(
+    'title'   => t('Menu path pattern of the page that has changes.'),
+    'example' => 'node/%/edit',
+  );
+
+  if ($revision !== NULL) {
+    $patterns['regression:menu-path']['value'] = $revision->path;
+  }
+  
+  // [regression:take-action-url]
+  $patterns['regression:take-action-url'] = array(
+    'title'   => t('URL to the page to approve od decline changes.'),
+    'example' => l(t('approve or disapprove changes'), 'admin/config/regression/take-action/1'),
+  );
+
+  if ($revision !== NULL) {
+    $patterns['regression:take-action-url']['value'] = l(t('approve or disapprove changes'), 'admin/config/regression/take-action/' . $revision->pid);
+  }
+
+  // [regression:settings-url]
+  $patterns['regression:settings-url'] = array(
+    'title'   => t('URL to change path configuration.'),
+    'example' => l(t('change configuration for this page'), 'admin/config/regression/paths/' . base64_encode('node/%/edit')),
+  );
+
+  if ($revision !== NULL) {
+    $patterns['regression:settings-url']['value'] = l(t('change menu path configuration'), 'admin/config/regression/paths/' . base64_encode($revision->path));
+  }
+
+  
+  // [regression:changes]
+  $example_changes = '+ Line 4 added<br />- Line 8 removed';
+
+  $patterns['regression:changes'] = array(
+    'title'   => t('List of changes detected on the page'),
+    'example' => $example_changes,
+  );
+  
+  drupal_alter('replacement_patterns_list', $patterns, $revision);
+  
+  return $patterns;
+}
+
+function regression_replacement_patterns_replace(RegressionRevision $revision, $content) {
+  // Populating patterns.
+  $patterns = regression_replacement_patterns_list($revision);
+  
+  foreach ($patterns as $pattern => $options) {
+    if (isset($options['value'])) {
+      // Replacing pattern
+      $content = str_replace('[' . $pattern . ']', $options['value'], $content);
+    }
+  }
+  
+  return $content;
+}
+
+/**
+ * Sends e-mail to configured recipients to take action for changes detected.
+ * @param RegressionRevision $old_revision
+ *   Previous revision
+ * @param RegressionRevision $new_revision
+ *   Newly saved revision
+ */
+function regression_revision_send_take_action_email(RegressionEntry $entry, RegressionRevision $old_revision, RegressionRevision $new_revision) {
+  
+  // Populating variables.
+  
+  $revision_old_id   = $old_revision->revision_id;
+  $revision_old_date = date('Y-m-d H:i:s', $old_revision->updated);
+  
+  $revision_new_id   = $new_revision->revision_id;
+  $revision_new_date = date('Y-m-d H:i:s', $new_revision->updated);
+  $revision_new_diff = $new_revision->parser_value_plain_text_diff;
+  
+  $settings          = regression_get_path_configuration($entry->path, TRUE);
+  
+  $recipients        = $settings['notifications_email_recipients'];
+  $template          = $settings['notifications_email_regression_template'];
+
+  $body              = regression_replacement_patterns_replace($new_revision, $template);
+  
+  // Newlines become a <br/>.
+  $body              = nl2br($body);
+  
+  file_put_contents('C:\body.htm', $body);
+  
+  $module   = 'regression';
+  $key      = 'a93kf82kf';
+  $language = language_default();
+  $params   = array();
+  $from     = NULL;
+
+  foreach ($recipients as $email) {
+    
+    // Creating e-mail message.
+    $send     = FALSE;
+    $message  = drupal_mail($module, $key, $email, $language, $params, $from, $send);
+  
+    $message['subject'] = t('Page has changed');
+    $message['body']    = array();
+    $message['body'][]  = $body;
+    
+  
+    // Retrieve the responsible implementation for this message.
+    $system = drupal_mail_system($module, $key);
+  
+    // Format the message body.
+    $message = $system->format($message);
+  
+    // Send e-mail.
+    $message['result'] = $system->mail($message);
+  }  
 }
 
 /**
@@ -87,6 +570,24 @@ function regression_help($path, $args) {
     $out = '<p>' . t('Regression module help.') . '</p>';
     return $out;
   }
+}
+
+/**
+ * Field Api extra fields handler
+ */
+function regression_field_extra_fields() {
+  $return = array();
+  regression_regression_entry_field_extra_fields($return);
+  regression_regression_revision_field_extra_fields($return);
+  return $return;
+}
+
+/**
+* Implements hook_entity_property_info_alter().
+*/
+function regression_entity_property_info_alter(&$info) {
+  regression_regression_entry_entity_property_info_alter($info);
+  regression_regression_revision_entity_property_info_alter($info);
 }
 
 /**
@@ -112,11 +613,178 @@ function regression_flush_caches() {
  * Implements hook_exit().
  */
 function regression_exit() {
-  $html = ob_get_contents();
-  // $text = html2txt_convert($html);
-  // @TODO:
-  //  * save text into new entity (revisioned)
-  //  * if entity content (text) is already saved, do not add (just update the update date),
-  //  * if entity content (text) is already saved in different revision, set as default
-}
+  
+  try {
 
+  if ($_POST) {
+    return;
+  }
+  
+  // Here we are skipping processing for specified content types.
+  $header         = drupal_get_http_header('content-type');   
+  $ignore_formats = array('xml', 'javascript', 'json', 'plain', 'image', 'application', 'csv', 'x-comma-separated-values');
+  foreach ($ignore_formats as $format) {
+    if (strstr($header, $format)) {
+      // Content type ignored, returning from the function.
+      //return;
+    }
+  }
+  
+  $menu_item          = menu_get_item(request_path());
+  
+  $menu_path          = $menu_item['path'];
+  $menu_args          = $menu_item['page_arguments'];
+  $path_configuration = regression_get_path_configuration($menu_path, TRUE);
+  
+  if (!$path_configuration['enabled']) {
+    // Page not added to regression testing, returning from the function.
+    return;
+  }
+  
+  // Building key from path settings.
+  $key = regression_build_key($path_configuration);
+  
+  $menu_callback = $menu_item['page_callback'];
+  $site_name     = variable_get('site_name');
+  
+  $html = ob_get_contents();
+  $text = html_entity_decode(html2txt_convert($html)->text);
+  
+  // Starting database transaction.
+  $transaction = db_transaction();
+  
+  // Creating or retrieving regression entry if already exists for a given key.
+  $query = new EntityFieldQuery;
+  $entry = reset($query
+    ->entityCondition('entity_type', 'regression_entry')
+    ->propertyCondition('key_hash', $key)
+    ->range(0, 1)
+    ->execute());
+  
+  if ($entry === FALSE) {
+    // No regression entry available for the page path, we will create new
+    // regression entry and also a new revision for that entry.
+    $entry = new RegressionEntry;
+    $entry->path                = $menu_path;
+    $entry->key_hash            = $key;
+    $entry->current_revision_id = NULL;
+    $entry->created             = REQUEST_TIME;
+    
+    // Creating initial revision for the entry.
+    $revision = new RegressionRevision;
+    $revision->created     = REQUEST_TIME;
+  }
+  else {
+    // We found related regression entry. Now we are searching if there is
+    // already existing revision with the same content.
+    
+    // Loading entry entity.
+    $entry = reset(entity_load('regression_entry', array_keys($entry)));
+    
+    $query = new EntityFieldQuery;
+    $revision = reset($query
+      ->entityCondition('entity_type', 'regression_revision')
+      ->propertyCondition('entry_id', $entry->pid)
+      ->propertyCondition('parser_value_plain_text', $text)
+      ->range(0, 1)
+      ->execute());
+    
+    if ($revision === FALSE) {
+      // No matching revision found, creating a new one.
+      $revision = new RegressionRevision;
+      $revision->created = REQUEST_TIME;
+      
+      // Incrementing last revision number by one.
+      $revision->revision_id =
+        db_select('regression_revision')
+          ->fields('regression_revision', array('revision_id'))
+          ->condition('path', $menu_path)
+          ->condition('entry_id', $entry->pid)
+          ->orderBy('revision_id', 'DESC')
+          ->range(0, 1)
+          ->execute()
+          ->fetchField() + 1;
+    }
+    else {
+      // We found matching revision. We'll use it when setting current revision
+      // id.
+      
+      // Loading revision entity.
+      $revision = reset(entity_load('regression_revision', array_keys($revision)));
+    }
+  }
+  
+  $last_entry_revision_id            = $entry->current_revision_id;
+  
+  // Changing current revision id for the entry.
+  $entry->current_revision_id        = $revision->revision_id;
+  
+  $revision->updated                 = REQUEST_TIME;
+  $revision->path                    = $menu_path;
+  $revision->parser_value_html       = $html;
+  $revision->parser_value_plain_text = $text;
+  $revision->uri                     = request_path();
+  
+  module_invoke_all('regression_build_revision', $revision);
+  
+  // Saving regression entry entity.
+  if ($entry->save() == FALSE) {
+    // Can't save entity, rollbacking database transaction.
+    $transaction -> rollback();
+    throw new Exception("Can't save regression entry");
+  }
+  
+  $revision->entry_id = $entry->pid;
+
+  if ($last_entry_revision_id !== NULL && $last_entry_revision_id != $revision->revision_id) {
+    // Revision has changed. Performing diff.
+    
+    $query = new EntityFieldQuery;
+    $previous_revision = regression_revision_load(reset(array_keys(reset($query
+      ->entityCondition('entity_type', 'regression_revision')
+      ->propertyCondition('entry_id', $entry->pid)
+      ->propertyCondition('revision_id', $last_entry_revision_id)
+      ->range(0, 1)
+      ->execute()))));
+    
+    if ($previous_revision->parser_value_plain_text === $text) {
+      // No changes detected. Nothing to do.
+    }
+    else {
+      // Changes detected.
+      
+      module_load_include('php', 'regression', 'libraries/finediff/finediff');
+      
+      $diff = new FineDiff($previous_revision->parser_value_plain_text_diff, $text, FineDiff::$wordGranularity);
+      
+      // Clearing previous revision's text diff.
+      $previous_revision->parser_value_plain_text_diff = NULL;
+  
+      // Saving previous regression revision.
+      if ($previous_revision->save() == FALSE) {
+        // Can't save entity, rollbacking database transaction.
+        $transaction -> rollback();
+        throw new Exception("Can't save previous regression revision");
+      }
+  
+      $revision->parser_value_plain_text_diff = preg_replace('/\\x([a-fA-F0-9]{2})/', '&#$1;', $diff->renderDiffToHTML());
+      
+      regression_revision_send_take_action_email($entry, $previous_revision, $revision);
+    }
+  }
+  
+  // Saving regression revision entity.
+  if ($revision->save() == FALSE) {
+    // Can't save entity, rollbacking database transaction.
+    $transaction->rollback();
+    throw new Exception("Can't save regression revision");
+  }
+  
+  
+  }
+  catch (PDOException $err) {
+    $transaction->rollback();
+    var_dump ($err->getMessage());
+    exit;
+  }
+}

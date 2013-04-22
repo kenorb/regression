@@ -5,6 +5,7 @@ class RegressionRevision extends Entity {
   public
     $pid,
     $path,
+    $path_args,
     $revision_id,
     $created,
     $updated,

@@ -1,0 +1,46 @@
+/**
+ * Regression module stylesheet.
+ */
+
+.diff {
+ color: rgba(0,0,0,0.5);
+ -ms-word-break: break-all;
+ word-break: break-all;
+ word-break: break-word;
+ -webkit-hyphens: auto;
+ -moz-hyphens: auto;
+ hyphens: auto;
+}
+
+.diff ins {
+  color: #000;
+  background: #bf6;
+  padding: 2px 5px;
+}
+
+.diff del {
+  color: #000;
+  background: #f85;
+  padding: 2px 5px;
+}
+
+form#regression-status-form .state {
+  padding: 6px 6px;
+}
+
+form#regression-status-form .state-awaiting-approval {
+  background: #ff6;
+}
+
+form#regression-status-form .state-approved {
+  background: #bf5;
+}
+
+form#regression-status-form .state-regression {
+  background: #fb6;
+}
+
+form#regression-status-form .state-broken {
+  color: #fff;
+  background: #f00;
+}

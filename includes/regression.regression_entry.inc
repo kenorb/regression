@@ -438,7 +438,7 @@ function regression_regression_entry_access($op, $task, $account = NULL, $entity
  *   Integer specifying the basic entity id.
  * @param $reset
  *   A boolean indicating that the internal cache should be reset.
- * @return
+ * @return RegressionEntry
  *   A fully-loaded $basic object or FALSE if it cannot be loaded.
  *
  * @see entity_example_basic_load_multiple()

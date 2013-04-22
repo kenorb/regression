@@ -202,6 +202,12 @@ function regression_schema() {
         'type'        => 'varchar',
         'length'      => 255,
       ),
+      'state' => array(
+        'description' => 'Current state of the page. See REGRESSION_ENTRY_STATE_* constants',
+        'type'        => 'int',
+        'unsigned'    => FALSE,
+        'not null'    => TRUE,
+      ),
       'path_args' => array(
         'description' => 'Page callback arguments values',
         'type'        => 'text',
@@ -217,10 +223,28 @@ function regression_schema() {
         'length'      => 32,
       ),
       'current_revision_id' => array(
+        'description' => 'Current revision ID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'current_revision_pid' => array(
         'description' => 'Current revision PID',
         'type'        => 'int',
         'unsigned'    => TRUE,
         'not null'    => TRUE,
+      ),
+      'current_working_revision_id' => array(
+        'description' => 'Currently(or previously) working revision ID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => FALSE,
+      ),
+      'current_working_revision_pid' => array(
+        'description' => 'Currently(or previously) working revision PID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => FALSE,
       ),
       'created' => array(
         'description' => 'The Unix timestamp when the record was created.',

@@ -6,9 +6,14 @@
  * @file
  *   Main module file.
  */
- 
- require_once 'includes/regression.regression_entry.inc';
- require_once 'includes/regression.regression_revision.inc';
+
+define('REGRESSION_ENTRY_STATE_BROKEN',     -2);
+define('REGRESSION_ENTRY_STATE_REGRESSION', -1);
+define('REGRESSION_ENTRY_STATE_CANDIDATE',   0);
+define('REGRESSION_ENTRY_STATE_APPROVED',    1);
+
+require_once 'includes/regression.regression_entry.inc';
+require_once 'includes/regression.regression_revision.inc';
 
 /**
  * @TODO:
@@ -67,6 +72,16 @@ function regression_menu() {
     'expanded'         => TRUE,
   );
 
+  $menu['admin/config/regression/status'] = array(
+    'type'             => MENU_NORMAL_ITEM | MENU_LOCAL_TASK,
+    'file'             => 'includes/regression.admin.status.inc',
+    'title'            => 'Regression status',
+    'page callback'    => 'drupal_get_form',
+    'page arguments'   => array('regression_status_form'),
+    'access arguments' => array('regression administration'),
+    'weight'           => -5,
+  );
+  
   $menu['admin/config/regression/paths'] = array(
     'type'             => MENU_NORMAL_ITEM | MENU_DEFAULT_LOCAL_TASK,
     'file'             => 'includes/regression.admin.paths.inc',
@@ -138,6 +153,33 @@ function regression_paths_configured() {
   foreach ($records as &$record) {
     $record = (array)$record;
     $record['features'] = '';
+  }
+  
+  return $records;
+}
+
+/**
+ * Returns statuses of regression entries.
+ */
+function regression_status() {
+  
+  $select = db_select('regression_entry', 're');
+  
+  $select->leftJoin('regression_path_configuration', 'pc', 're.path = pc.path');
+  $select->leftJoin('regression_revision', 'last_revision', 'last_revision.entry_id = re.pid AND last_revision.revision_id = re.current_revision_id');
+  
+  $records = $select
+    ->fields('re', array('pid', 'path', 'state', 'current_working_revision_id', 'current_working_revision_pid', 'current_revision_id', 'current_revision_pid'))
+    ->fields('last_revision', array('pid', 'uri', 'path_args'))
+    ->condition('pc.visible', '1')
+    ->condition('pc.enabled', '1')
+    ->condition('pc.ready',   '1')
+    ->orderBy('path')
+    ->execute()
+    ->fetchAll();
+
+  foreach ($records as &$record) {
+    $record = (array)$record;
   }
   
   return $records;
@@ -372,7 +414,7 @@ function regression_regression_key_menu_path($settings) {
  * @return string
  *   Stringified version of the key.
  */
-function regression_regression_key_page_arguments($settings) {
+function regression_regression_key_page_arguments($settings, $check_ignores = TRUE) {
   
   $menu_item              = menu_get_item(request_path());
   $menu_path              = $menu_item['path'];
@@ -388,21 +430,18 @@ function regression_regression_key_page_arguments($settings) {
       // No more custom parameters
       $result[] = arg($arg_i);
     }
-    else {
-      if ($menu_path_segments[$arg_i] == '%') {
+    elseif ($menu_path_segments[$arg_i] == '%') {
         
-        // Checking if arguments isn't ingored.
-        if (isset($settings['uniques'][$arg_counter])) {
-          $result[] = arg($arg_i);
-        }
-        
-        ++$arg_counter;
+      // Checking if arguments isn't ingored.
+      if (!$check_ignores || isset($settings['uniques'][$arg_counter])) {
+        $result[] = arg($arg_i);
       }
+      
+      ++$arg_counter;
     }
-    
   }
   
-  return implode(',', $result);
+  return implode(', ', $result);
 }
 
 /**
@@ -476,7 +515,7 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
     $patterns['regression:settings-url']['value'] = l(t('change menu path configuration'), 'admin/config/regression/paths/' . base64_encode($revision->path));
   }
 
-  
+/*
   // [regression:changes]
   $example_changes = '+ Line 4 added<br />- Line 8 removed';
 
@@ -484,6 +523,11 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
     'title'   => t('List of changes detected on the page'),
     'example' => $example_changes,
   );
+
+  if ($revision !== NULL) {
+    $patterns['regression:changes']['value'] = '<div class="diff">' . $revision->parser_value_plain_text_diff . '</div>';
+  }
+*/
   
   drupal_alter('replacement_patterns_list', $patterns, $revision);
   
@@ -665,14 +709,18 @@ function regression_exit() {
     // No regression entry available for the page path, we will create new
     // regression entry and also a new revision for that entry.
     $entry = new RegressionEntry;
-    $entry->path                = $menu_path;
-    $entry->key_hash            = $key;
-    $entry->current_revision_id = NULL;
-    $entry->created             = REQUEST_TIME;
+    $entry->path                         = $menu_path;
+    $entry->state                        = REGRESSION_ENTRY_STATE_CANDIDATE;
+    $entry->key_hash                     = $key;
+    $entry->current_revision_id          = NULL;
+    $entry->current_revision_pid         = NULL;
+    $entry->current_working_revision_id  = NULL;
+    $entry->current_working_revision_pid = NULL;
+    $entry->created                      = REQUEST_TIME;
     
     // Creating initial revision for the entry.
     $revision = new RegressionRevision;
-    $revision->created     = REQUEST_TIME;
+    $revision->created                  = REQUEST_TIME;
   }
   else {
     // We found related regression entry. Now we are searching if there is
@@ -704,6 +752,8 @@ function regression_exit() {
           ->range(0, 1)
           ->execute()
           ->fetchField() + 1;
+      
+      $entry->state = REGRESSION_ENTRY_STATE_CANDIDATE;
     }
     else {
       // We found matching revision. We'll use it when setting current revision
@@ -711,16 +761,26 @@ function regression_exit() {
       
       // Loading revision entity.
       $revision = reset(entity_load('regression_revision', array_keys($revision)));
+      
+      if ($revision->revision_id !== $entry->current_working_revision_id) {
+        $entry->state = REGRESSION_ENTRY_STATE_CANDIDATE;
+      }
     }
   }
   
   $last_entry_revision_id            = $entry->current_revision_id;
+  $last_entry_revision_pid           = $entry->current_revision_pid;
+  $last_working_entry_revision_id    = $entry->current_working_revision_id;
+  $last_working_entry_revision_pid   = $entry->current_working_revision_pid;
   
   // Changing current revision id for the entry.
+  // Note that this doesn't affect the current working revision id.
   $entry->current_revision_id        = $revision->revision_id;
+  $entry->current_revision_pid       = $revision->pid;
   
   $revision->updated                 = REQUEST_TIME;
   $revision->path                    = $menu_path;
+  $revision->path_args               = regression_regression_key_page_arguments(regression_get_path_configuration($menu_path), FALSE);
   $revision->parser_value_html       = $html;
   $revision->parser_value_plain_text = $text;
   $revision->uri                     = request_path();
@@ -736,18 +796,21 @@ function regression_exit() {
   
   $revision->entry_id = $entry->pid;
 
-  if ($last_entry_revision_id !== NULL && $last_entry_revision_id != $revision->revision_id) {
+  if ($revision->revision_id === NULL || $last_working_entry_revision_id !== $revision->revision_id) {
     // Revision has changed. Performing diff.
     
-    $query = new EntityFieldQuery;
-    $previous_revision = regression_revision_load(reset(array_keys(reset($query
-      ->entityCondition('entity_type', 'regression_revision')
-      ->propertyCondition('entry_id', $entry->pid)
-      ->propertyCondition('revision_id', $last_entry_revision_id)
-      ->range(0, 1)
-      ->execute()))));
+    if ($last_working_entry_revision_id !== NULL) {
+      
+      // There is already a last working revision.
+      $previous_working_revision = regression_revision_load($last_working_entry_revision_pid);
+    }
+    else {
+      // There is no last working revision yet.
+      $previous_working_revision = new RegressionRevision;
+      $previous_working_revision->parser_value_plain_text = '';
+    }
     
-    if ($previous_revision->parser_value_plain_text === $text) {
+    if ($previous_working_revision->parser_value_plain_text === $text) {
       // No changes detected. Nothing to do.
     }
     else {
@@ -755,21 +818,25 @@ function regression_exit() {
       
       module_load_include('php', 'regression', 'libraries/finediff/finediff');
       
-      $diff = new FineDiff($previous_revision->parser_value_plain_text_diff, $text, FineDiff::$wordGranularity);
+      $diff = new FineDiff($previous_working_revision->parser_value_plain_text, $text, FineDiff::$wordGranularity);
       
       // Clearing previous revision's text diff.
-      $previous_revision->parser_value_plain_text_diff = NULL;
+      $previous_working_revision->parser_value_plain_text_diff = NULL;
   
       // Saving previous regression revision.
-      if ($previous_revision->save() == FALSE) {
+      if ($last_working_entry_revision_id !== NULL && $previous_working_revision->save() == FALSE) {
         // Can't save entity, rollbacking database transaction.
         $transaction -> rollback();
         throw new Exception("Can't save previous regression revision");
       }
-  
-      $revision->parser_value_plain_text_diff = preg_replace('/\\x([a-fA-F0-9]{2})/', '&#$1;', $diff->renderDiffToHTML());
       
-      regression_revision_send_take_action_email($entry, $previous_revision, $revision);
+      ob_start();
+      FineDiff::renderFromOpcodes($previous_working_revision->parser_value_plain_text_diff, $diff->getOpcodes(), 'regression_render_diff_opcode');
+      $diff_text = ob_get_clean();
+
+      $revision->parser_value_plain_text_diff = preg_replace('/\\x([a-fA-F0-9]{2})/', '&#$1;', $diff_text);
+      
+      $send_email = array($entry, $previous_working_revision, $revision);
     }
   }
   
@@ -780,11 +847,31 @@ function regression_exit() {
     throw new Exception("Can't save regression revision");
   }
   
+  if (isset($send_email)) {
+    call_user_func_array('regression_revision_send_take_action_email', $send_email);
+  }
+  
   
   }
   catch (PDOException $err) {
     $transaction->rollback();
     var_dump ($err->getMessage());
     exit;
+  }
+}
+
+function regression_render_diff_opcode($op, $from, $n, $str = '') {
+  switch($op) {
+    case 'i':
+      echo '<ins>' . $from . '</ins>';
+      break;
+      
+    case 'd':
+      echo '<del>' . $from . '</del>';
+      break;
+      
+    case 'c':
+      echo $from;
+      break;
   }
 }

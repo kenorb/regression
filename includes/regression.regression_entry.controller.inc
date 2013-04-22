@@ -6,8 +6,10 @@ class RegressionEntry extends Entity {
     $pid,
     $key_hash,
     $path,
+    $state,
     $host,
     $current_revision_id,
+    $current_working_revision_id,
     $created;
 
   public function __construct($values = array()) {

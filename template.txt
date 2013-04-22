@@ -1,0 +1,7 @@
+Welcome,
+
+Page [regression:page-url] of menu path <b>[regression:menu-path]</b> has changed on <b>[regression:datetime]</b> and you are allowed to [regression:take-action-url] made.
+
+You may also [regression:settings-url].
+
+Thank you!

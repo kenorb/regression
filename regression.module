@@ -639,8 +639,6 @@ function regression_revision_send_take_action_email(RegressionEntry $entry, Regr
   // Newlines become a "display:block".
   $body              = str_replace("\n", '<span style="display:block;"></span>', $body);
   
-  file_put_contents('C:\body.htm', $body);
-  
   $module   = 'regression';
   $key      = 'a93kf82kf';
   $language = language_default();

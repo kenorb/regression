@@ -69,16 +69,25 @@ function regression_paths_edit_form() {
     );
   }
   
+  $settings         = regression_get_path_configuration($path_pattern);
+  $default_settings = regression_get_path_configuration('__default');
+  $keys             = regression_keys();
   
-  $form['regression_paths_edit_edit']['key_segments'] = array(
+  if ($path_pattern !== '__default') {
+    $form['require_resolve_description'] = array(
+      '#type'          => 'checkbox',
+      '#title'         => 'Require description when resolving',
+      '#default_value' => isset($settings['require_resolve_description']) ?
+         (bool)$settings['require_resolve_description'] : FALSE,
+    );
+  }
+  
+  $form['regression_paths_key_segments']['key_segments'] = array(
     '#title' => t('How to identify that the page is unique'),
     '#type'  => 'fieldset',
     '#theme' => 'form_panel_table',
   );
   
-  $settings         = regression_get_path_configuration($path_pattern);
-  $default_settings = regression_get_path_configuration('__default');
-  $keys             = regression_keys();
   
   foreach ($keys as $name => $key) {
     
@@ -103,7 +112,6 @@ function regression_paths_edit_form() {
         )
       );
       
-      
       $key_segment_settings = isset($settings['key_segments'][$name]) ?
         $settings['key_segments'][$name] : array();
       
@@ -112,15 +120,13 @@ function regression_paths_edit_form() {
         // Callback don't want settings form.
         $form_container['settings'] = array();
       }
-      
     }
     
-    $form['regression_paths_edit_edit']['key_segments'][] = $form_container;
+    $form['regression_paths_key_segments']['key_segments'][] = $form_container;
   }
    
   $form = system_settings_form($form);
-  
-  
+
   // Notifications.
   $form['regression_notifications']['notifications'] = array(
     '#title' => t('Notifications'),
@@ -259,10 +265,15 @@ function regression_paths_edit_form_submit($form, &$form_state) {
   $settings['override_default_notifications_email_recipients'] =
     isset($form_state['input']['override_default_notifications_email_recipients']) ?
     $form_state['input']['override_default_notifications_email_recipients'] : FALSE;
+
+  $settings['require_resolve_description'] =
+    isset($form_state['input']['require_resolve_description']) ?
+    $form_state['input']['require_resolve_description'] : FALSE;
   
   regression_set_path_configuration($form_state['values']['path'], $settings);
   
   drupal_set_message(t('Path settings have been saved.'));
+  drupal_goto('admin/config/regression/paths');
 }
 
 /**

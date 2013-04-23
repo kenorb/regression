@@ -121,7 +121,19 @@ function regression_schema() {
         'not null'    => TRUE,
       ),
       'revision_id' => array(
-        'description' => 'ID of the related entry',
+        'description' => 'Sequential ID of the revision',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'previous_revision_id' => array(
+        'description' => 'ID of the previous revision',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'previous_revision_pid' => array(
+        'description' => 'ID of the previous revision record',
         'type'        => 'int',
         'unsigned'    => TRUE,
         'not null'    => TRUE,
@@ -250,6 +262,31 @@ function regression_schema() {
         'description' => 'The Unix timestamp when the record was created.',
         'type'        => 'int',
         'not null'    => TRUE,
+      ),
+      'description' => array(
+        'description' => 'Text of the description',
+        'type'        => 'text',
+      ),
+      'related_module_name' => array(
+        'description' => 'Name of the related module',
+        'type'        => 'varchar',
+        'length'      => '64',
+      ),
+      'related_bug_tracker_url' => array(
+        'description' => 'URL to the bugtracker',
+        'type'        => 'varchar',
+        'length'      => '160',
+      ),
+      'assignee' => array(
+        'description' => 'Name of the user assigned to resolve the problem',
+        'type'        => 'varchar',
+        'length'      => '40',
+      ),
+      'priority' => array(
+        'description' => 'Priority of the entry resolution',
+        'type'        => 'int',
+        'not null'    => TRUE,
+        'default'     => 0,
       ),
     ),
     'primary key' => array('pid'),

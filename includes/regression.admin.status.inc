@@ -14,25 +14,18 @@ function regression_status_form() {
   
   $form['regression_status']['list'] = array(
     '#title' => t('Paths status'),
-    '#type'  => 'fieldset'
+    '#type'  => 'fieldset',
   );
 
-  $form['regression_status']['list']['default'] = array(
-   '#type' => 'link',
-    '#title' => t('Edit default regression test settings.'),
-    '#href' => 'admin/config/regression/paths/default',
-    '#options' => array(
-      'html' => true,
-    ),
-    '#suffix' => '<div style="height: 10px;"></div>',
-  );
-  
   $header = array(
-    'menu_path' => t('Menu path'),
-    'page_path' => t('Page path'),
-    'path_args' => t('Page arguments'),
-    'state'     => t('Status'),
-    'actions'   => t('Actions'),
+    'menu_path'     => t('Menu path'),
+    'page_path'     => t('Page path'),
+    'path_args'     => t('Page arguments'),
+    'module'        => t('Related module'),
+    'assignee'      => t('Assignee'),
+    'last_working'  => t('Last working revision'),
+    'state'         => t('Status'),
+    'actions'       => t('Actions'),
   );
     
   $status_rows = regression_status();
@@ -41,15 +34,21 @@ function regression_status_form() {
   
   foreach ($status_rows as $row) {
     
-    $actions =
-      l(t('Edit settings'), 'admin/config/regression/paths/' . base64_encode($row['path'])) . ' | ' .
-      l(t('Delete'),        'admin/config/regression/paths/' . base64_encode($row['path']) . '/remove');
+    if ($row['state'] == REGRESSION_ENTRY_STATE_CANDIDATE) {
+      $actions = '<b>' . l(t('Take action'), 'admin/config/regression/review/' . $row['last_revision_pid']) . '</b>';
+    }
+    else {
+      $actions = '<b>' . l(t('View'), 'admin/config/regression/review/' . $row['last_revision_pid']) . '</b>';
+    }
     
+    $actions .= ' | ' . l(t('Delete'), 'admin/config/regression/paths/' . base64_encode($row['path']) . '/remove');
+    
+    $actions .= ' | ' . l(t('Path settings'), 'admin/config/regression/paths/' . base64_encode($row['path']));
+      
     switch ($row['state']) {
       case REGRESSION_ENTRY_STATE_CANDIDATE:
         $state_text  = t('Awaiting approval');
         $state_class = 'state-awaiting-approval';
-        $actions    .= ' | ' . l(t('Take action'), 'admin/config/regression/take-action/' . $row['last_revision_pid']);
         break;
         
       case REGRESSION_ENTRY_STATE_APPROVED:
@@ -67,13 +66,45 @@ function regression_status_form() {
         $state_class = 'state-regression';
         break;
     }
+
+    $assignee_user = user_load_by_name(check_plain($row['assignee']));
+    
+    if ($assignee_user) {
+      $assignee = l($assignee_user->name, 'user/' . $assignee_user->uid);
+    }
+    else {
+      $assignee = check_plain($assignee);
+    }
+    
+    if (!empty($row['current_working_revision_pid'])) {
+      if ($row['current_working_revision_pid'] === $row['current_revision_pid']) {
+        $title = t('#!num (Current revision)', array(
+          '!num'  => '<b>' . $row['current_working_revision_id'] . '</b>',
+        ));
+      }
+      else {
+        $title = t('#!num on %date', array(
+          '!num'  => '<b>' . $row['current_working_revision_id'] . '</b>',
+          '%date' => date('d/m/Y H:i:s', $row['updated'])
+        ));
+      }
+      $last_working_revision = l($title, 'admin/config/regression/review/' . $row['current_working_revision_pid'], array('html' => TRUE));
+    }
+    else {
+       $last_working_revision = t('N/A');
+    }
+      
+    
     
     $paths_rows[] = array(
-      'menu_path' => $row['path'],
-      'page_path' => ($row['uri'] !== '') ? l($row['uri'], $row['uri']) : 'N/A',
-      'path_args' => $row['path_args'],
-      'state'     => '<div class="state ' . $state_class . '">' . $state_text . '</div>',
-      'actions'   => $actions,
+      'menu_path'     => $row['path'],
+      'page_path'     => ($row['uri'] !== '') ? l($row['uri'], $row['uri']) : 'N/A',
+      'path_args'     => $row['path_args'],
+      'module'        => $row['related_module_name'],
+      'assignee'      => $assignee,
+      'last_working'  => $last_working_revision,
+      'state'         => '<div class="state ' . $state_class . '">' . $state_text . '</div>',
+      'actions'       => $actions,
     );
   }
 

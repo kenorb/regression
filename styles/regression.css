@@ -12,32 +12,35 @@
  hyphens: auto;
 }
 
-.diff ins {
-  color: #000;
-  background: #bf6;
-  padding: 2px 5px;
+fieldset#edit-regression-take-action-changes {
+  border: 2px solid #ff6;
+  padding: 42px 0px 0px 0px;
+  background: #ffa;
 }
 
-.diff del {
-  color: #000;
-  background: #f85;
-  padding: 2px 5px;
+form#regression-paths-form .url,
+form#regression-take-action-form .url {
+  margin: 5px 0px 15px 2px;
+  font-weight: bold;
 }
 
 form#regression-status-form .state {
-  padding: 6px 6px;
+  padding: 6px 10px;
+  font-weight: bold;
+  border-radius: 9px;
+  text-align: center;
 }
 
 form#regression-status-form .state-awaiting-approval {
-  background: #ff6;
+  background: #ccc;
 }
 
 form#regression-status-form .state-approved {
-  background: #bf5;
+  background: #af3;
 }
 
 form#regression-status-form .state-regression {
-  background: #fb6;
+  background: #f80;
 }
 
 form#regression-status-form .state-broken {

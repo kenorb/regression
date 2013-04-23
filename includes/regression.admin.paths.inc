@@ -10,26 +10,28 @@
  */
 function regression_paths_form() {
   
+  drupal_add_css(drupal_get_path('module', 'regression') . '/styles/regression.css');
+  
   $form['regression_paths']['list'] = array(
-    '#title' => t('Configured paths'),
-    '#type'  => 'fieldset'
+    '#title'     => t('Configured paths'),
+    '#type'      => 'fieldset',
   );
 
   $form['regression_paths']['list']['default'] = array(
-   '#type' => 'link',
-    '#title' => t('Edit default regression test settings.'),
-    '#href' => 'admin/config/regression/paths/default',
-    '#options' => array(
+    '#type'      => 'link',
+    '#title'     => t('Edit default regression test settings.'),
+    '#href'      => 'admin/config/regression/paths/default',
+    '#options'   => array(
       'html' => true,
     ),
-    '#suffix' => '<div style="height: 10px;"></div>',
+    '#attributes' => array('class' => 'url'),
+    '#suffix'     => '<div style="height: 10px;"></div>',
   );
   
   $header = array(
-    'enabled'  => t('Enabled'),
-    'path'     => t('Path'),
-    'features' => t('Enabled features'),
-    'actions'  => t('Actions'),
+    'enabled' => t('Enabled'),
+    'path'    => t('Path'),
+    'actions' => t('Actions'),
   );
   
   $configured_paths = regression_paths_configured();
@@ -40,7 +42,8 @@ function regression_paths_form() {
     
     $actions =
       l(t('Edit settings'), 'admin/config/regression/paths/' . base64_encode($row['path'])) . ' | ' .
-      l(t('Delete'),        'admin/config/regression/paths/' . base64_encode($row['path']) . '/remove');
+      l($row['enabled'] ? t('Disable') : t('Enable'), 'admin/config/regression/paths/switch/' . $row['pid']) . ' | ' .
+      l(t('Remove'),        'admin/config/regression/paths/' . base64_encode($row['path']) . '/remove');
     
     $enabled_widget = array(
       '#type'    => 'checkbox',
@@ -50,9 +53,8 @@ function regression_paths_form() {
     );
     
     $paths_rows[] = array(
-      'enabled'  => drupal_render($enabled_widget),
+      'enabled'  => $row['enabled'] ? t('Yes') : t('No'),
       'path'     => ($row['path'] == '__default') ? ('<b>' . t('Default settings') . '</b>') : $row['path'],
-      'features' => $row['features'],
       'actions'  => $actions,
     );
   }

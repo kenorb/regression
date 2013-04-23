@@ -17,7 +17,12 @@ function regression_take_action_form() {
   $entry                     = regression_entry_load($revision->entry_id);
   $last_working_revision_id  = $entry->current_working_revision_id;
   $last_working_revision_pid = $entry->current_working_revision_pid;
+  $settings                  = regression_get_path_configuration($revision->path, TRUE);
+  $is_candidate              = $revision->revision_id == $entry->current_revision_id && $entry->state == REGRESSION_ENTRY_STATE_CANDIDATE;
   
+  $form['regression_take_action']['go_back'] = array(
+    '#markup' => '<div class="url">' . l(t('‹‹ Go back to the list'), 'admin/config/regression/status', array('html' => TRUE)) . '</div>',
+  );
   
   $info_header = array(
     'path'                  => t('Menu path'),
@@ -27,6 +32,7 @@ function regression_take_action_form() {
   );
   
   if ($last_working_revision_id === NULL) {
+    $last_working_revision      = NULL;
     $last_working_revision_name = 'N/A';
   }
   else {
@@ -48,7 +54,7 @@ function regression_take_action_form() {
     '#weight' => 0,
   );
     
-  if ($entry->state == REGRESSION_ENTRY_STATE_CANDIDATE) {
+  if ($is_candidate) {
     
     $form['regression_take_action']['#weight'] = 1;
     $form['regression_take_action']['actions'] = array(
@@ -62,46 +68,131 @@ function regression_take_action_form() {
         'broken'     => t('Mark as broken'),
       ),
      );
-    
-    
-    // Information.
-    $form['regression_take_action_changes'] = array(
-      '#weight' => 5,
-      '#title'  => t('Changes'),
-      '#type'   => 'fieldset'
-    );
-    
-    $form['regression_take_action_changes']['diff'] = array(
-      '#markup'  => '<div class="diff">' . nl2br($revision->parser_value_plain_text_diff) . '</div>',
-    );
-    
-    $form = system_settings_form($form);
-    
+  }
+
+
+  
+  // Description.
+  
+  $form['regression_take_action_description'] = array(
+    '#weight'  => 4,
+    '#title'   => t('Description'),
+    '#type'    => 'fieldset'
+  );
+  
+  $form['regression_take_action_description']['decription_text'] = array(
+    '#title'         => t('Description'),
+    '#type'          => 'textarea',
+    '#rows'          => 3,
+    '#default_value' => check_plain($entry->description),
+  );
+  
+  
+  
+  $form['regression_take_action_description']['description_priority'] = array(
+    '#title'         => t('Priority'),
+    '#type'          => 'radios',
+    '#options'       => array(
+      '0' => t('Minor'),
+      '1' => t('Major'),
+      '2' => t('Blocker'),
+    ),
+    '#default_value' => check_plain($entry->priority),
+  );
+  
+  $form['regression_take_action_description']['description_module_name'] = array(
+    '#title'             => t('Module name'),
+    '#type'              => 'textfield',
+    '#autocomplete_path' => 'regression/module-autocomplete',
+    '#size'              => 40,
+    '#default_value'     => check_plain($entry->related_module_name),
+  );
+  
+  $form['regression_take_action_description']['description_bug_tracker_url'] = array(
+    '#title'         => t('Bug tracker URL'),
+    '#type'          => 'textfield',
+    '#size'          => 40,
+    '#default_value' => check_plain($entry->related_bug_tracker_url),
+  );
+
+  $form['regression_take_action_description']['assignee'] = array(
+    '#title'             => t('Assignee'),
+    '#type'              => 'textfield',
+    '#autocomplete_path' => 'user/autocomplete',
+    '#size'              => 40,
+    '#default_value'     => check_plain($entry->assignee),
+  );
+  
+  if ($is_candidate) {
+    if (!isset($settings['require_resolve_description']) || !$settings['require_resolve_description']) {
+      $form['regression_take_action_description']['#collapsible'] = TRUE;
+      $form['regression_take_action_description']['#collapsed']   = TRUE;
+      $form['regression_take_action_description']['#attributes']  = array(
+        'class' => array('collapsible'),
+      );
+      
+    }
+    else {
+      $form['regression_take_action_description']['decription_text']['#required'] = TRUE;
+    }
+  }
+  
+  // Difference between last working version of the page.
+  
+  $form['regression_take_action_changes'] = array(
+    '#weight'        => 5,
+    '#title'         => t('Difference between last working version of the page'),
+    '#type'          => 'fieldset'
+  );
+  
+  $form['regression_take_action_changes']['diff'] = array(
+    '#markup'        => '<div class="diff">' . nl2br(
+      ($last_working_revision !== $revision) ? regression_diff_revisions($last_working_revision, $revision) : t('No difference detected.')
+     ) . '</div>',
+  );
+  
+  $form = system_settings_form($form);
+  
+  if ($is_candidate) {
     $form['actions']['submit']['#value'] = t('Resolve');
-    $form['actions']['#weight'] = 2;
-    $form['#submit'] = array('regression_take_action_form_submit');
   }
   else {
+    $form['actions']['submit']['#value'] = t('Save');
+  }
+  
+  $form['actions']['#weight'] = 5;
+  $form['#submit'] = array('regression_take_action_form_submit');
+  
+  if (!$is_candidate) {
     
-    switch ($entry->state) {
-      case REGRESSION_ENTRY_STATE_APPROVED:
-        $state_text = t('approved');
-        break;
-      case REGRESSION_ENTRY_STATE_BROKEN:
-        $state_text = t('broken');
-        break;
-      case REGRESSION_ENTRY_STATE_REGRESSION:
-        $state_text = t('a regression');
-        break;
-    }
+    if ($revision->revision_id == $entry->current_revision_id) {
       
-    $form['regression_take_action']['state'] = array(
-      '#markup' => '<div class="state">' . t('Page is already marked as <b>!state</b>.', array('!state' => $state_text)) . '</div>',
-    );
+      switch ($entry->state) {
+        case REGRESSION_ENTRY_STATE_APPROVED:
+          $state_text = t('approved');
+          break;
+        case REGRESSION_ENTRY_STATE_BROKEN:
+          $state_text = t('broken');
+          break;
+        case REGRESSION_ENTRY_STATE_REGRESSION:
+          $state_text = t('a regression');
+          break;
+      }
+      
+      
+      $form['regression_take_action']['state'] = array(
+        '#markup' => '<div class="state">' . t('Page is already marked as <b>!state</b>.', array('!state' => $state_text)) . '</div>',
+      );
+    }
+    else {
+      $form['regression_take_action']['state'] = array(
+        '#markup' => '<div class="state">'
+          . t('There is already a !url.', array(
+              '!url' => '<b>' . l(t('new revision candidate #!num for this page', array('!num' => $entry->current_revision_id)), 'admin/config/regression/review/' . $entry->current_revision_pid) . '</b>',
+          )) . '</div>',
+      );
+    }
     
-    // No actions available.
-    unset($form['#submit']);
-    unset($form['actions']['submit']);
   }
 
   return $form;
@@ -123,12 +214,17 @@ function regression_take_action_form_submit($form, &$form_state) {
   $revision = regression_revision_load($revision_pid);
   $entry    = regression_entry_load($revision->entry_id);
   
+  $entry->description             = check_plain($form_state['input']['decription_text']);
+  $entry->priority                = check_plain($form_state['input']['description_priority']);
+  $entry->related_module_name     = check_plain($form_state['input']['description_module_name']);
+  $entry->related_bug_tracker_url = check_plain($form_state['input']['description_bug_tracker_url']);
+  $entry->assignee                = check_plain($form_state['input']['assignee']);
+  
   switch ($form_state['input']['actions']) {
     case 'approve':
       $entry->state                        = REGRESSION_ENTRY_STATE_APPROVED;
       $entry->current_working_revision_id  = $revision->revision_id;
       $entry->current_working_revision_pid = $revision->pid;
-      $entry->save();
       break;
     
     case 'ignore':
@@ -136,14 +232,13 @@ function regression_take_action_form_submit($form, &$form_state) {
     
     case 'regression':
       $entry->state                       = REGRESSION_ENTRY_STATE_REGRESSION;
-      $entry->save();
       break;
     
     case 'broken':
       $entry->state                       = REGRESSION_ENTRY_STATE_BROKEN;
-      $entry->save();
       break;
   }
   
+  $entry->save();
   
 }

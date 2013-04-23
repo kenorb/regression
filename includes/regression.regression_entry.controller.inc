@@ -10,7 +10,12 @@ class RegressionEntry extends Entity {
     $host,
     $current_revision_id,
     $current_working_revision_id,
-    $created;
+    $created,
+    $description,
+    $related_module_name,
+    $related_bug_tracker_url,
+    $assignee,
+    $priority;
 
   public function __construct($values = array()) {
     // Following construction mean that the regression_regression_entry_* handlers will be used to manage this entity

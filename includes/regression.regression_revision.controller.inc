@@ -7,6 +7,8 @@ class RegressionRevision extends Entity {
     $path,
     $path_args,
     $revision_id,
+    $previous_revision_id,
+    $previous_revision_pid,
     $created,
     $updated,
     $parser_value_html,

@@ -7,10 +7,12 @@
  *   Main module file.
  */
 
-define('REGRESSION_ENTRY_STATE_BROKEN',     -2);
-define('REGRESSION_ENTRY_STATE_REGRESSION', -1);
-define('REGRESSION_ENTRY_STATE_CANDIDATE',   0);
-define('REGRESSION_ENTRY_STATE_APPROVED',    1);
+define('REGRESSION_ENTRY_STATE_BROKEN',            -2);
+define('REGRESSION_ENTRY_STATE_REGRESSION',        -1);
+define('REGRESSION_ENTRY_STATE_CANDIDATE',          0);
+define('REGRESSION_ENTRY_STATE_APPROVED',           1);
+define('REGRESSION_EMAIL_DEFAULT_REGRESSION_TITLE', 'Regression module detected potential page regression');
+define('REGRESSION_EMAIL_DEFAULT_REGRESSION_BODY',  "Welcome,\n\nPage [regression:page-url] of menu path [regression:menu-path] has changed on [regression:datetime] and you are allowed to [regression:take-action-url] made.\n\nDifference between last working version of the page:\n\n[regression:difference]\n\nYou may also [regression:settings-url].\n\nThank you!");
 
 include_once 'regression.features.inc';
 require_once 'includes/regression.regression_entry.inc';
@@ -290,10 +292,18 @@ function regression_get_path_configuration($path_pattern, $include_default_setti
     
     // Merging configuration.
     
-    $settings['notifications_email_regression_template'] =
-      isset($parent_settings['notifications_email_regression_template']) ?
-      $parent_settings['notifications_email_regression_template'] : ''; 
-    
+    static $variable_names = array(
+      'notifications_email_send_as_html'     => FALSE,
+      'notifications_email_regression_title' => REGRESSION_EMAIL_DEFAULT_REGRESSION_TITLE,
+      'notifications_email_regression_body'  => REGRESSION_EMAIL_DEFAULT_REGRESSION_BODY,
+    );
+
+    foreach ($variable_names as $name => $default_value) {
+      $settings[$name] =
+        !empty($parent_settings[$name]) ?
+        $parent_settings[$name] : $default_value;
+    }
+     
     if (empty($settings['override_default_notifications_email_recipients'])) {
       // Merging email recipients.
       
@@ -333,11 +343,6 @@ function regression_set_path_configuration($path_pattern, $configuration) {
   else {
     // Path not yet configured.
     $query = db_insert('regression_path_configuration');
-  }
-  
-  if (isset($configuration['notifications_email_recipients'])) {
-    $configuration['notifications_email_recipients'] =
-      implode("\n", $configuration['notifications_email_recipients']);
   }
   
   // Checking if path is ready to be tested for regression.
@@ -528,7 +533,7 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   );
   
   if ($revision !== NULL) {
-    $patterns['regression:datetime']['value'] = date('d/m/Y H:i:s', $revision -> updated);
+    $patterns['regression:datetime']['value_text'] = date('d/m/Y H:i:s', $revision -> updated);
   }
 
   // [regression:page-url]
@@ -538,7 +543,8 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   );
 
   if ($revision !== NULL) {
-    $patterns['regression:page-url']['value'] = l($revision->uri, $revision->uri);
+    $patterns['regression:page-url']['value_html'] = l($revision->uri, $revision->uri);
+    $patterns['regression:page-url']['value_text'] = $revision->uri;
   }
 
   // [regression:menu-path]
@@ -548,7 +554,7 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   );
 
   if ($revision !== NULL) {
-    $patterns['regression:menu-path']['value'] = $revision->path;
+    $patterns['regression:menu-path']['value_text'] = $revision->path;
   }
   
   // [regression:take-action-url]
@@ -558,7 +564,8 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   );
 
   if ($revision !== NULL) {
-    $patterns['regression:take-action-url']['value'] = l(t('approve or disapprove changes'), 'admin/config/regression/review/' . $revision->pid);
+    $patterns['regression:take-action-url']['value_html'] = l(t('approve or disapprove changes'), 'admin/config/regression/review/' . $revision->pid);
+    $patterns['regression:take-action-url']['value_text'] = t('approve or disapprove changes (!url)', array('!url' => 'admin/config/regression/review/' . $revision->pid));
   }
 
   // [regression:settings-url]
@@ -568,7 +575,8 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   );
 
   if ($revision !== NULL) {
-    $patterns['regression:settings-url']['value'] = l(t('change menu path configuration'), 'admin/config/regression/paths/' . base64_encode($revision->path));
+    $patterns['regression:settings-url']['value_html'] = l(t('change menu path configuration'), 'admin/config/regression/paths/' . base64_encode($revision->path));
+    $patterns['regression:settings-url']['value_text'] = t('change menu path configuration (!url)', array('!url' => 'admin/config/regression/paths/' . base64_encode($revision->path)));
   }
 
   // [regression:difference]
@@ -587,7 +595,11 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
     
     $previous_revision = regression_revision_load($entry->current_working_revision_pid);
     
-    $patterns['regression:difference']['value'] = '<div style="' . $css_diff . '">' . regression_diff_revisions($previous_revision === FALSE ? NULL : $previous_revision, $revision) . '</div>';
+    $patterns['regression:difference']['value_html'] = '<div style="' . $css_diff . '">' . regression_diff_revisions($previous_revision === FALSE ? NULL : $previous_revision, $revision) . '</div>';
+    $patterns['regression:difference']['value_text'] =
+      "--------------------------------------------------------------------------------\n" .
+      regression_diff_revisions($previous_revision === FALSE ? NULL : $previous_revision, $revision, FALSE) .
+      "\n--------------------------------------------------------------------------------\n";
   }
   
   drupal_alter('replacement_patterns_list', $patterns, $revision);
@@ -595,14 +607,39 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   return $patterns;
 }
 
-function regression_replacement_patterns_replace(RegressionRevision $revision, $content) {
+/**
+ * Replaces tokens in content using revision data.  
+ * @param RegressionRevision $revision
+ *   Revision of which data should be used for replacements.
+ * @param string $content
+ *   Template
+ * @param boolean $use_html
+ *   Indicates whether replecements may use HTML output.
+ * @return string
+ *   Resulting content
+ */
+function regression_replacement_patterns_replace(RegressionRevision $revision, $content, $use_html = TRUE) {
   // Populating patterns.
   $patterns = regression_replacement_patterns_list($revision);
   
   foreach ($patterns as $pattern => $options) {
-    if (isset($options['value'])) {
+    if (isset($options['value_text']) || isset($options['value_html'])) {
       // Replacing pattern
-      $content = str_replace('[' . $pattern . ']', $options['value'], $content);
+      
+      if ($use_html) {
+        $value = isset($options['value_html']) ? $options['value_html'] : $options['value_text'];
+      }
+      else {
+        if (!isset($options['value_text'])) {
+          // Converting HTML into plain text
+          $value = drupal_html_to_text($options['value_html']);
+        }
+        else {
+          $value = $use_html && isset($options['value_html']) ? $options['value_html'] : $options['value_text']; 
+        }
+      }
+          
+      $content = str_replace('[' . $pattern . ']', $value, $content);
     }
   }
   
@@ -625,25 +662,33 @@ function regression_revision_send_take_action_email(RegressionEntry $entry, Regr
   
   $revision_new_id   = $new_revision->revision_id;
   $revision_new_date = date('Y-m-d H:i:s', $new_revision->updated);
-  $revision_new_diff = regression_diff_revisions($old_revision, $new_revision);
   
   $settings          = regression_get_path_configuration($entry->path, TRUE);
   
   $recipients        = $settings['notifications_email_recipients'];
-  $template          = $settings['notifications_email_regression_template'];
+  $template_send_as_html = $settings['notifications_email_send_as_html'];
+  $template_title    = $settings['notifications_email_regression_title'];
+  $template_body     = $settings['notifications_email_regression_body'];
 
   $css_body          = 'padding: 12px;';
   
-  $body              = '<div style="' . $css_body . '">' . regression_replacement_patterns_replace($new_revision, $template) . '</div>';
+  $title             = regression_replacement_patterns_replace($new_revision, $template_title);
   
-  // Newlines become a "display:block".
-  $body              = str_replace("\n", '<span style="display:block;"></span>', $body);
+  if ($template_send_as_html) {
+    $body            = '<div style="' . $css_body . '">' . regression_replacement_patterns_replace($new_revision, $template_body) . '</div>';
+    
+    // Newlines become a "display:block".
+    $body              = str_replace("\n", "<span style='display:block;'></span>\n", $body);
+  }
+  else {
+    $body            = regression_replacement_patterns_replace($new_revision, $template_body, FALSE);
+  }
   
-  $module   = 'regression';
-  $key      = 'a93kf82kf';
-  $language = language_default();
-  $params   = array();
-  $from     = NULL;
+  $module            = 'regression';
+  $key               = 'a93kf82kf';
+  $language          = language_default();
+  $params            = array();
+  $from              = NULL;
 
   foreach ($recipients as $email) {
     
@@ -651,11 +696,10 @@ function regression_revision_send_take_action_email(RegressionEntry $entry, Regr
     $send     = FALSE;
     $message  = drupal_mail($module, $key, $email, $language, $params, $from, $send);
   
-    $message['subject'] = t('Drupal "Regression" module: Page has changed');
+    $message['subject'] = $title;
     $message['body']    = array();
     $message['body'][]  = $body;
-    
-  
+
     // Retrieve the responsible implementation for this message.
     $system = drupal_mail_system($module, $key);
   
@@ -754,6 +798,9 @@ function regression_exit() {
   
   $html = ob_get_contents();
   $text = html_entity_decode(html2txt_convert($html)->text);
+  
+  // Removing non-ASCII characters.
+  $text = iconv("UTF-8", "ASCII//IGNORE", $text);
   
   // Starting database transaction.
   $transaction = db_transaction();
@@ -924,7 +971,14 @@ function regression_exit() {
   }
 }
 
-function regression_render_diff_opcode($opcode, $from, $from_offset, $from_len) {
+/**
+ * Renders diff in html format.
+ * @param string $opcode
+ * @param string $from
+ * @param number $from_offset
+ * @param number $from_len
+ */
+function regression_render_diff_opcode_html($opcode, $from, $from_offset, $from_len) {
   
   $css_txt = '';
   $css_del = 'color:#000;background-color:#f85;padding:1px 1px;';
@@ -954,19 +1008,71 @@ function regression_render_diff_opcode($opcode, $from, $from_offset, $from_len) 
 }
 
 /**
+ * Performs text wrapping
+ * @param string $string
+ *   Source string.
+ * @param number $length
+ *   Line length.
+ * @param string $prefix
+ *   Prefix for output lines.
+ * @param string $break
+ *   Break string for output lines.
+ * @return string
+ */
+function regression_wrap_text($string, $length, $prefix, $break) {
+  $string = preg_replace("/\r\n/", "\n", $string);
+  $string = preg_replace("/([^\n]{" . (int)$length . "})/m", "$1\n", $string);
+  $string = preg_replace("/([^\n]+)\n/", $prefix . '$1' . $break, $string);
+  $string = preg_replace("/\n+/", "\n", $string);
+  return $string;
+}
+
+/**
+ * Renders diff in plain text format.
+ * @param string $opcode
+ * @param string $from
+ * @param number $from_offset
+ * @param number $from_len
+ */
+function regression_render_diff_opcode_text($opcode, $from, $from_offset, $from_len) {
+  
+  if ($opcode === 'c') {
+    $fragment = substr($from, $from_offset, $from_len);
+    if (strlen($fragment) > 70) {
+      echo regression_wrap_text(drupal_html_to_text(substr($fragment, 0, 70)), 80, " [S] ", "\n");
+      echo regression_wrap_text(drupal_html_to_text(substr($fragment, -70)), 80, " [S] ... ", "\n");
+    }
+    else {
+      echo regression_wrap_text(drupal_html_to_text(substr($fragment, 0, 70)), 80, " [S] ", "\n");
+    }
+  }
+  elseif ($opcode === 'd') {
+    $deletion = substr($from, $from_offset, $from_len);
+    if (strcspn($deletion, " \n\r") === 0) {
+      $deletion = str_replace(array("\n","\r"), array('\n','\r'), $deletion);
+    }
+    echo regression_wrap_text(drupal_html_to_text($deletion), 80, "  [-] ", "\n");
+  }
+  else /* if ( $opcode === 'i' ) */ {
+    echo regression_wrap_text(drupal_html_to_text(substr($from, $from_offset, $from_len)), 80, "  [+] ", "\n");
+    echo "\n\n";
+  }
+}
+
+/**
  * Generated HTML visualization of diff between two revisions.
  * @param RegressionRevision $old
  *   Old revision.
  * @param RegressionRevision $new
  *   New revision.
  */
-function regression_diff_revisions(RegressionRevision $old = NULL, RegressionRevision $new) {
+function regression_diff_revisions(RegressionRevision $old = NULL, RegressionRevision $new, $use_html = TRUE) {
   module_load_include('php', 'regression', 'libraries/finediff/finediff');
   
   $diff = new FineDiff($old !== NULL ? $old->parser_value_plain_text : '', $new->parser_value_plain_text, FineDiff::$characterGranularity);
   
   ob_start();
-  FineDiff::renderFromOpcodes($old !== NULL ? $old->parser_value_plain_text : '', $diff->getOpcodes(), 'regression_render_diff_opcode');
+  FineDiff::renderFromOpcodes($old !== NULL ? $old->parser_value_plain_text : '', $diff->getOpcodes(), $use_html ? 'regression_render_diff_opcode_html' : 'regression_render_diff_opcode_text');
   $diff_text = ob_get_clean();
   
   $diff_text = preg_replace('/\\x([a-fA-F0-9]{2})/', '&#$1;', $diff_text);

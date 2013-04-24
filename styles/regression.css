@@ -10,12 +10,14 @@
  -webkit-hyphens: auto;
  -moz-hyphens: auto;
  hyphens: auto;
+ border: 2px solid #ff6;
+ padding: 7px 10px;
+ background: #ffa;
+ height: 534px;
+ overflow-y: scroll;
 }
 
 fieldset#edit-regression-take-action-changes {
-  border: 2px solid #ff6;
-  padding: 42px 0px 0px 0px;
-  background: #ffa;
 }
 
 form#regression-paths-form .url,

@@ -117,6 +117,44 @@ Usage
      
       * Assignee (responsible)
    
+Ignoring changes
+================
+
+  You may decide to ignore some changes per path configuration or per page entry.
+
+  Path configuration ignores may be applied only by adding custom regular expressions as its page entries may totally differ in code produced.
+
+  Page entry ignores may be applied by adding custom regular expressions or by inserting predefined expressions in diff's insert/delete fragments.
+
+  E.g.:
+
+    - Navigate to the revision candidate review page
+    - Select "Mark that change as dynamic (ignore it in the future)"
+
+    - Now we're able to modify working page text content and we can add some ignores.
+
+      Difference between last working version of the page:
+      (difference will be automatically updated as you edit last working page revision)
+
+    firstly:
+      [ <del>Welcome</del><ins>Hello</ins> world.                   ]
+     then:
+      [ No changes detected.                                        ]
+      
+    - You may also click on the deletion fragment to make it ignored - it will modify last working page content currently edited
+
+      Editing last working page revision:
+
+      [ [ignore]Welcome[/ignore] world.                             ]
+      [                                                             ]
+
+      Regular expression ignores:
+
+      [ \* Edit.*?Skip to main content[^\n]+\n                      ]
+      [                                                             ]
+
+
+
 
 Technical notes
 ===============

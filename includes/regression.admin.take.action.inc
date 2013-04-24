@@ -12,7 +12,16 @@ function regression_take_action_form() {
   
   drupal_add_css(drupal_get_path('module', 'regression') . '/styles/regression.css');
 
-  $revision_pid              = arg(4);
+  if (arg(0) == 'system' && arg(1) == 'ajax') {
+    $ajax                   = TRUE;
+    list($form, $form_state, $form_id, $form_build_id) = ajax_get_form(); 
+    $revision_pid            = arg(5, $form['#action']);
+  }
+  else {
+    $ajax                   = FALSE;
+    $revision_pid            = arg(4);
+  }
+  
   $revision                  = regression_revision_load($revision_pid);
   $entry                     = regression_entry_load($revision->entry_id);
   $last_working_revision_id  = $entry->current_working_revision_id;
@@ -137,18 +146,64 @@ function regression_take_action_form() {
     }
   }
   
-  // Difference between last working version of the page.
   
-  $form['regression_take_action_changes'] = array(
-    '#weight'        => 5,
-    '#title'         => t('Difference between last working version of the page'),
-    '#type'          => 'fieldset'
+  $form['regression_ignores'] = array(
+    '#weight' => 7,
+    '#title'  => t('Dynamic difference viewer'),
+    '#type'   => 'fieldset',
+    '#prefix' => '<div class="admin">', 
+    '#suffix' => '</div>',
   );
   
-  $form['regression_take_action_changes']['diff'] = array(
+  $form['regression_ignores']['left'] = array(
+    '#prefix' => '<div class="left">', 
+    '#suffix' => '</div>',
+  );
+
+  // Difference between last working version of the page.
+  
+  $form['regression_ignores']['left']['regression_take_action_changes'] = array(
+    '#title'         => t('Difference between last working version of the page'),
+    '#type'          => 'item',
+    '#prefix'        => '<div id="changes_diff">',
+    '#suffix'        => '</div>',
+    '#weight'        => 6,
+  );
+  
+  $form['regression_ignores']['left']['regression_take_action_changes']['diff'] = array(
+    '#type'          => 'item',
     '#markup'        => '<div class="diff">' . nl2br(
       ($last_working_revision !== $revision) ? regression_diff_revisions($last_working_revision, $revision) : t('No difference detected.')
      ) . '</div>',
+  );
+
+  $form['regression_ignores']['right'] = array(
+    '#prefix' => '<div class="right">', 
+    '#suffix' => '</div>',
+  );
+  
+  $form['regression_ignores']['right']['original'] = array(
+    '#title'         => 'Working version of the page',
+    '#type'          => 'textarea',
+    '#rows'          => 10,
+    '#default_value' => $last_working_revision ? $last_working_revision->parser_value_plain_text : '', 
+  );
+
+  $form['regression_ignores']['right']['ignores_regexes_path_configuration'] = array(
+    '#title'  => 'List of ignored expressions for pages grouped by menu path',
+    '#type'   => 'textarea',
+    '#rows'   => 4,
+    '#ajax' => array(
+      'callback' => 'regression_ajax_changes_diff',
+      'wrapper'  => 'changes_diff',
+      'method'   => 'html',
+    ),
+  );
+  
+  $form['regression_ignores']['right']['ignores_regexes_page_revisions'] = array(
+    '#title'  => 'List of ignored expressions for page revisions',
+    '#type'   => 'textarea',
+    '#rows'   => 4,
   );
   
   $form = system_settings_form($form);
@@ -179,7 +234,6 @@ function regression_take_action_form() {
           break;
       }
       
-      
       $form['regression_take_action']['state'] = array(
         '#markup' => '<div class="state">' . t('Page is already marked as <b>!state</b>.', array('!state' => $state_text)) . '</div>',
       );
@@ -196,6 +250,10 @@ function regression_take_action_form() {
   }
 
   return $form;
+}
+
+function regression_ajax_changes_diff(&$form, &$form_state) {
+  return $form['regression_ignores']['left']['regression_take_action_changes'];
 }
 
 /**

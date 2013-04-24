@@ -24,6 +24,26 @@ function regression_uninstall() {
 }
 
 /**
+ * Implements hook_enable().
+ */
+function regression_enable() {
+  module_load_include('module', 'regression');
+  mailsystem_set(
+    array(
+      mailsystem_default_id() => 'RegressionMailSystem',
+      'mimemail'              => 'RegressionMailSystem',
+    )
+  );
+}
+
+/**
+ * Implements hook_disable().
+ */
+function regression_disable() {
+  mailsystem_clear(array('regression' => 'RegressionMailSystem'));
+}
+
+/**
  * Implements hook_schema().
  */
 function regression_schema() {

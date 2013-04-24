@@ -124,19 +124,23 @@ function regression_paths_edit_form() {
     
     $form['regression_paths_key_segments']['key_segments'][] = $form_container;
   }
-   
+
+  
   $form = system_settings_form($form);
+  
+  $form['regression_notifications']['#weight'] = 2;
 
   // Notifications.
   $form['regression_notifications']['notifications'] = array(
-    '#title' => t('Notifications'),
-    '#type'  => 'fieldset'
+    '#title'  => t('Notifications'),
+    '#type'   => 'fieldset',
+    '#weight' => 4,
   );
   
   if ($path_pattern != '__default') {
-    // Notifications / Override default recipient list
+    // Notifications / Don't use default recipient list.
     $form['regression_notifications']['notifications']['override_default_notifications_email_recipients'] = array(
-      '#title'   => t('Override default recipient list'),
+      '#title'   => t("Don't use default recipient list"),
       '#type'    => 'checkbox',
       '#default_value' => isset($settings['override_default_notifications_email_recipients']) ?
           $settings['override_default_notifications_email_recipients'] : FALSE,
@@ -144,13 +148,14 @@ function regression_paths_edit_form() {
     
   }
 
-  // Notifications / Default email recipients
+  // Notifications / Default email recipients.
   $form['regression_notifications']['notifications']['default_notifications_email_recipients'] = array(
     '#name'          => 'notifications_email_recipients',
     '#title'         => t('Email recipients (default list)'),
     '#type'          => 'textarea',
     '#rows'          => 2,
     '#default_value' => isset($default_settings['notifications_email_recipients']) ? implode("\n", $default_settings['notifications_email_recipients']) : '',
+    '#weight'        => 5,
   );
   
   if ($path_pattern != '__default') {
@@ -165,7 +170,7 @@ function regression_paths_edit_form() {
         )
       );
     
-    // Notifications / Additional email recipients
+    // Notifications / Email recipients.
     $form['regression_notifications']['notifications']['additional_notifications_email_recipients'] = array(
       '#name'          => 'notifications_email_recipients',
       '#title'         => t('Email recipients'),
@@ -173,22 +178,59 @@ function regression_paths_edit_form() {
       '#type'          => 'textarea',
       '#rows'          => 2,
       '#default_value' => isset($settings['notifications_email_recipients']) ? implode("\n", $settings['notifications_email_recipients']) : '',
+      '#weight'        => 7,
     );
   }
   
   if ($path_pattern == '__default') {
     
-    // Notifications / Regression notification e-mail template.
-    $form['regression_notifications']['notifications']['notifications_email_regression_template'] = array(
-      '#title'         => t('Regression notification e-mail template'),
+    $form['regression_notifications']['notifications']['emails'] = array(
+      '#type'   => 'item',
+      '#title'  => t('E-mail templates'),
+      '#weight' => 1,
+    );
+
+    $form['regression_notifications']['notifications']['notifications_email_send_as_html'] = array(
+      '#type'          => 'checkbox',
+      '#title'         => t('Send as HTML'),
+      '#description'   => t('Note that you have to configure Drupal to send HTML emails, e.g. by installing !mimemail and enabling HTML format.', array(
+        '!mimemail' => l('mimemail', 'http://drupal.org/project/mimemail'),
+       )),
+      '#weight'        => 1,
+      '#default_value' => isset($settings['notifications_email_send_as_html']) ? $settings['notifications_email_send_as_html'] : FALSE,
+    );
+    
+    $form['regression_notifications']['notifications']['templates'] = array(
+      '#type'   => 'vertical_tabs',
+      '#weight' => 2,
+    );
+    
+    $form['regression_notifications']['template_regression'] = array(
+      '#title'  => 'Potential regression',
+      '#type'   => 'fieldset',
+      '#group'  => 'templates',
+      '#weight' => 3,
+    );
+    
+    // Potential regression / Title.
+    $form['regression_notifications']['template_regression']['notifications_email_regression_title'] = array(
+      '#title'         => t('Title'),
+      '#description'   => t('You can use replacements presented below.'),
+      '#type'          => 'textfield',
+      '#default_value' => !empty($settings['notifications_email_regression_title']) ? $settings['notifications_email_regression_title'] : REGRESSION_EMAIL_DEFAULT_REGRESSION_TITLE,
+    );
+    
+    // Potential regression / Body.
+    $form['regression_notifications']['template_regression']['notifications_email_regression_body'] = array(
+      '#title'         => t('Body'),
       '#description'   => t('You can use replacements presented below.'),
       '#type'          => 'textarea',
       '#rows'          => 16,
-      '#default_value' => isset($settings['notifications_email_regression_template']) ? $settings['notifications_email_regression_template'] : '',
+      '#default_value' => !empty($settings['notifications_email_regression_body']) ? $settings['notifications_email_regression_body'] : REGRESSION_EMAIL_DEFAULT_REGRESSION_BODY,
     );
     
     // Notifications / Regression notification e-mail template replacements
-    $form['regression_notifications']['notifications']['replacements'] = array(
+    $form['regression_notifications']['replacements'] = array(
       '#type'          => 'fieldset',
       '#title'         => 'Available replacements',
       '#collapsible'   => TRUE,
@@ -196,6 +238,7 @@ function regression_paths_edit_form() {
       '#attributes'    => array(
         'class' => array('collapsible'),
       ),
+      '#weight'        => 6,
     );
     
     $header = array(
@@ -216,7 +259,7 @@ function regression_paths_edit_form() {
       );
     }
   
-    $form['regression_notifications']['notifications']['replacements']['table'] = array(
+    $form['regression_notifications']['replacements']['table'] = array(
       '#markup' => theme('table', array('header' => $header, 'rows' => $pattern_rows)),
       '#weight' => 0,
     );
@@ -250,25 +293,21 @@ function regression_paths_edit_form_submit($form, &$form_state) {
     }
   }
   
-  $settings['key_segments_enabled'] =
-    isset($form_state['input']['key_segments_enabled']) ?
-    $form_state['input']['key_segments_enabled'] : '';
+  static $variable_names = array(
+    'key_segments_enabled',
+    'notifications_email_recipients',
+    'notifications_email_send_as_html',
+    'notifications_email_regression_title',
+    'notifications_email_regression_body',
+    'override_default_notifications_email_recipients',
+    'require_resolve_description',
+  );
   
-  $settings['notifications_email_recipients'] =
-    isset($form_state['input']['notifications_email_recipients']) ?
-    explode("\n", $form_state['input']['notifications_email_recipients']) : array();
+  // Filling settings array from submitted form values.
+  foreach ($variable_names as $name) {
+    $settings[$name] = isset($form_state['input'][$name]) ? $form_state['input'][$name] : '';
+  }
   
-  $settings['notifications_email_regression_template'] =
-    isset($form_state['input']['notifications_email_regression_template']) ?
-    $form_state['input']['notifications_email_regression_template'] : '';
-  
-  $settings['override_default_notifications_email_recipients'] =
-    isset($form_state['input']['override_default_notifications_email_recipients']) ?
-    $form_state['input']['override_default_notifications_email_recipients'] : FALSE;
-
-  $settings['require_resolve_description'] =
-    isset($form_state['input']['require_resolve_description']) ?
-    $form_state['input']['require_resolve_description'] : FALSE;
   
   regression_set_path_configuration($form_state['values']['path'], $settings);
   

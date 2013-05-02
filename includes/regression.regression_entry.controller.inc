@@ -15,11 +15,25 @@ class RegressionEntry extends Entity {
     $related_module_name,
     $related_bug_tracker_url,
     $assignee,
-    $priority;
+    $priority,
+    $ignores_regex;
 
   public function __construct($values = array()) {
     // Following construction mean that the regression_regression_entry_* handlers will be used to manage this entity
     parent::__construct($values, 'regression_entry'); 
+  }
+  
+  /**
+   * Returns related regression path configuration record.
+   * @return stdClass
+   */
+  public function get_path_configuration() {
+    return (object)db_select('regression_path_configuration', 'RC')
+      ->fields('RC', array('pid', 'settings', 'enabled', 'ignores_regex'))
+      ->condition('path', $this->path)
+      ->range(0, 1)
+      ->execute()
+      ->fetchAssoc();    
   }
   
 }

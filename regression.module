@@ -11,6 +11,7 @@ define('REGRESSION_ENTRY_STATE_BROKEN',            -2);
 define('REGRESSION_ENTRY_STATE_REGRESSION',        -1);
 define('REGRESSION_ENTRY_STATE_CANDIDATE',          0);
 define('REGRESSION_ENTRY_STATE_APPROVED',           1);
+define('REGRESSION_ENTRY_STATE_IGNORED',            2);
 define('REGRESSION_EMAIL_DEFAULT_REGRESSION_TITLE', 'Regression module detected potential page regression');
 define('REGRESSION_EMAIL_DEFAULT_REGRESSION_BODY',  "Welcome,\n\nPage [regression:page-url] of menu path [regression:menu-path] has changed on [regression:datetime] and you are allowed to [regression:take-action-url] made.\n\nDifference between last working version of the page:\n\n[regression:difference]\n\nYou may also [regression:settings-url].\n\nThank you!");
 
@@ -539,12 +540,12 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   // [regression:page-url]
   $patterns['regression:page-url'] = array(
     'title'   => t('URL of the page that has changed.'),
-    'example' => l('node/30/edit', 'node/30/edit'),
+    'example' => l('node/30/edit', 'node/30/edit', array('absolute' => TRUE,)),
   );
 
   if ($revision !== NULL) {
-    $patterns['regression:page-url']['value_html'] = l($revision->uri, $revision->uri);
-    $patterns['regression:page-url']['value_text'] = $revision->uri;
+    $patterns['regression:page-url']['value_html'] = l($revision->uri, $revision->uri, array('absolute' => TRUE,));
+    $patterns['regression:page-url']['value_text'] = url($revision->uri, array('absolute' => TRUE,));
   }
 
   // [regression:menu-path]
@@ -560,23 +561,23 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
   // [regression:take-action-url]
   $patterns['regression:take-action-url'] = array(
     'title'   => t('URL to the page to approve od decline changes.'),
-    'example' => l(t('approve or disapprove changes'), 'admin/config/regression/review/1'),
+    'example' => l(t('approve or disapprove changes'), 'admin/config/regression/review/1', array('absolute' => TRUE,)),
   );
 
   if ($revision !== NULL) {
-    $patterns['regression:take-action-url']['value_html'] = l(t('approve or disapprove changes'), 'admin/config/regression/review/' . $revision->pid);
-    $patterns['regression:take-action-url']['value_text'] = t('approve or disapprove changes (!url)', array('!url' => 'admin/config/regression/review/' . $revision->pid));
+    $patterns['regression:take-action-url']['value_html'] = l(t('approve or disapprove changes'), 'admin/config/regression/review/' . $revision->pid, array('absolute' => TRUE,));
+    $patterns['regression:take-action-url']['value_text'] = t('approve or disapprove changes (!url)', array('!url' => url('admin/config/regression/review/' . $revision->pid, array('absolute' => TRUE,))));
   }
 
   // [regression:settings-url]
   $patterns['regression:settings-url'] = array(
     'title'   => t('URL to change path configuration.'),
-    'example' => l(t('change configuration for this page'), 'admin/config/regression/paths/' . base64_encode('node/%/edit')),
+    'example' => l(t('change configuration for this page'), 'admin/config/regression/paths/' . base64_encode('node/%/edit'), array('absolute' => TRUE,)),
   );
 
   if ($revision !== NULL) {
-    $patterns['regression:settings-url']['value_html'] = l(t('change menu path configuration'), 'admin/config/regression/paths/' . base64_encode($revision->path));
-    $patterns['regression:settings-url']['value_text'] = t('change menu path configuration (!url)', array('!url' => 'admin/config/regression/paths/' . base64_encode($revision->path)));
+    $patterns['regression:settings-url']['value_html'] = l(t('change menu path configuration'), 'admin/config/regression/paths/' . base64_encode($revision->path), array('absolute' => TRUE,));
+    $patterns['regression:settings-url']['value_text'] = t('change menu path configuration (!url)', array('!url' => url('admin/config/regression/paths/' . base64_encode($revision->path), array('absolute' => TRUE,))));
   }
 
   // [regression:difference]
@@ -595,10 +596,10 @@ function regression_replacement_patterns_list(RegressionRevision $revision = NUL
     
     $previous_revision = regression_revision_load($entry->current_working_revision_pid);
     
-    $patterns['regression:difference']['value_html'] = '<div style="' . $css_diff . '">' . regression_diff_revisions($previous_revision === FALSE ? NULL : $previous_revision, $revision) . '</div>';
+    $patterns['regression:difference']['value_html'] = '<div style="' . $css_diff . '">' . regression_diff_revisions($previous_revision === FALSE ? NULL : $previous_revision, $revision, TRUE, NULL, 0, $num_differences) . '</div>';
     $patterns['regression:difference']['value_text'] =
       "--------------------------------------------------------------------------------\n" .
-      regression_diff_revisions($previous_revision === FALSE ? NULL : $previous_revision, $revision, FALSE) .
+      regression_diff_revisions($previous_revision === FALSE ? NULL : $previous_revision, $revision, FALSE, NULL, 80, $num_differences) .
       "\n--------------------------------------------------------------------------------\n";
   }
   
@@ -644,6 +645,33 @@ function regression_replacement_patterns_replace(RegressionRevision $revision, $
   }
   
   return $content;
+}
+
+/**
+ * Performs removal of ignored expression from the revision content.
+ * 
+ * Function doesn't save the record.
+ * 
+ * @param RegressionRevision $revision
+ *   Input revision.
+ * @param unknown_type $ignores
+*   List of custom ignores to use instead of configured ones.   
+ */
+function regression_revision_perform_ignores(RegressionRevision $revision = NULL, $ignores = NULL) {
+  
+  $ignored_list = array();
+  
+  if ($revision === NULL)
+    return;
+  
+  if ($ignores === NULL) {
+    $ignores['regex'] = array_merge(
+      explode("\n", $revision->get_entry()->ignores_regex) ?: array(),
+      explode("\n", $revision->get_path_configuration()->ignores_regex) ?: array()
+    );
+  }
+  
+  return $ignores;
 }
 
 /**
@@ -919,7 +947,9 @@ function regression_exit() {
       $previous_working_revision->parser_value_plain_text = '';
     }
     
-    if ($previous_working_revision->parser_value_plain_text === $text) {
+    regression_diff_revisions($previous_working_revision, $revision, TRUE, NULL, 0, $num_differences);
+    
+    if ($num_differences == 0 || $previous_working_revision->parser_value_plain_text === $text) {
       // No changes detected. Nothing to do.
     }
     else {
@@ -977,8 +1007,9 @@ function regression_exit() {
  * @param string $from
  * @param number $from_offset
  * @param number $from_len
+ * @param number $fragment_length
  */
-function regression_render_diff_opcode_html($opcode, $from, $from_offset, $from_len) {
+function regression_render_diff_opcode_html($opcode, $from, $from_offset, $from_len, $fragment_length = 0) {
   
   $css_txt = '';
   $css_del = 'color:#000;background-color:#f85;padding:1px 1px;';
@@ -986,13 +1017,13 @@ function regression_render_diff_opcode_html($opcode, $from, $from_offset, $from_
   
   if ($opcode === 'c') {
     $fragment = substr($from, $from_offset, $from_len);
-    if (strlen($fragment) > 80) {
-      echo htmlentities(htmlentities(substr($fragment, 0, 40)));
+    if ($fragment_length != 0 && strlen($fragment) > $fragment_length) {
+      echo htmlentities(htmlentities(substr($fragment, 0, $fragment_length / 2)));
       echo '...<br /><br />...';
-      echo htmlentities(htmlentities(substr($fragment, -40)));
+      echo htmlentities(htmlentities(substr($fragment, -$fragment_length / 2)));
     }
     else {
-      echo htmlentities(htmlentities(substr($fragment, 0, 20)));
+      echo htmlentities(htmlentities(substr($fragment, 0, $fragment_length ?: NULL)));
     }
   }
   elseif ($opcode === 'd') {
@@ -1008,6 +1039,62 @@ function regression_render_diff_opcode_html($opcode, $from, $from_offset, $from_
 }
 
 /**
+ * Renders diff in html format.
+ * @param string $opcode
+ * @param string $from
+ * @param number $from_offset
+ * @param number $from_len
+ * @param number $fragment_length
+ */
+function regression_render_diff($from_text, $to_text, $html_mode = TRUE, $ignores = array(), &$num_differences, $fragment_length) {
+  
+  if (isset($ignores['regex'])) {
+    foreach ($ignores['regex'] as $ignore) {
+      $from_text = preg_replace('/' . $ignore . '/s', '', $from_text);
+      $to_text   = preg_replace('/' . $ignore . '/s', '', $to_text);
+    }
+  }
+  
+  $num_differences = 0;
+  
+  $diff = new FineDiff($from_text, $to_text, FineDiff::$characterGranularity);
+  
+	$in_offset = 0;
+	
+	if ($html_mode) {
+	  $render_callback = 'regression_render_diff_opcode_html';
+	}
+	else {
+	  $render_callback = 'regression_render_diff_opcode_text';
+	}
+
+	ob_start();
+	
+  foreach ($diff->getOps() as $edit) {
+    $n = $edit->getFromLen();
+    if ($edit instanceof FineDiffCopyOp) {
+      $render_callback('c', $from_text, $in_offset, $n, $fragment_length);
+    }
+    elseif ($edit instanceof FineDiffDeleteOp) {
+      $render_callback('d', $from_text, $in_offset, $n, $fragment_length);
+      ++$num_differences;
+    }
+    elseif ($edit instanceof FineDiffInsertOp) {
+      $render_callback('i', $to_text, $in_offset, $edit->getToLen(), $fragment_length);
+      ++$num_differences;
+    }
+    else /* if ( $edit instanceof FineDiffReplaceOp ) */ {
+      $render_callback('d', $from_text, $in_offset, $n, $fragment_length);
+      $render_callback('i', $edit->getText(), 0, $edit->getToLen(), $fragment_length);
+      ++$num_differences;
+    }
+    $in_offset += $n;
+  }
+
+  return ob_get_clean();
+}
+
+/**
  * Performs text wrapping
  * @param string $string
  *   Source string.
@@ -1020,9 +1107,14 @@ function regression_render_diff_opcode_html($opcode, $from, $from_offset, $from_
  * @return string
  */
 function regression_wrap_text($string, $length, $prefix, $break) {
+  if ($length == 0) {
+    // Unlimited length, returning the whole string.
+    return $prefix . $string . $break;
+  }
+  
   $string = preg_replace("/\r\n/", "\n", $string);
   $string = preg_replace("/([^\n]{" . (int)$length . "})/m", "$1\n", $string);
-  $string = preg_replace("/([^\n]+)\n/", $prefix . '$1' . $break, $string);
+  $string = preg_replace("/([^\n]+)[\n$]+/", $prefix . '$1' . $break, $string);
   $string = preg_replace("/\n+/", "\n", $string);
   return $string;
 }
@@ -1033,17 +1125,18 @@ function regression_wrap_text($string, $length, $prefix, $break) {
  * @param string $from
  * @param number $from_offset
  * @param number $from_len
+ * @param number $fragment_length
  */
-function regression_render_diff_opcode_text($opcode, $from, $from_offset, $from_len) {
-  
+function regression_render_diff_opcode_text($opcode, $from, $from_offset, $from_len, $fragment_length = 0) {
+
   if ($opcode === 'c') {
     $fragment = substr($from, $from_offset, $from_len);
-    if (strlen($fragment) > 70) {
-      echo regression_wrap_text(drupal_html_to_text(substr($fragment, 0, 70)), 80, " [S] ", "\n");
-      echo regression_wrap_text(drupal_html_to_text(substr($fragment, -70)), 80, " [S] ... ", "\n");
+    if ($fragment_length != 0 && strlen($fragment) > $fragment_length - 3) {
+      echo regression_wrap_text(drupal_html_to_text(substr($fragment, 0, $fragment_length - 3)), $fragment_length, "     ", "\n");
+      echo regression_wrap_text(drupal_html_to_text(substr($fragment, -($fragment_length - 3))), $fragment_length, "     ... ", "\n");
     }
     else {
-      echo regression_wrap_text(drupal_html_to_text(substr($fragment, 0, 70)), 80, " [S] ", "\n");
+      echo regression_wrap_text(drupal_html_to_text(substr($fragment, 0, $fragment_length ?: NULL)), $fragment_length, "     ", "\n");
     }
   }
   elseif ($opcode === 'd') {
@@ -1051,10 +1144,10 @@ function regression_render_diff_opcode_text($opcode, $from, $from_offset, $from_
     if (strcspn($deletion, " \n\r") === 0) {
       $deletion = str_replace(array("\n","\r"), array('\n','\r'), $deletion);
     }
-    echo regression_wrap_text(drupal_html_to_text($deletion), 80, "  [-] ", "\n");
+    echo regression_wrap_text(drupal_html_to_text($deletion), $fragment_length, " [-] ", "\n");
   }
   else /* if ( $opcode === 'i' ) */ {
-    echo regression_wrap_text(drupal_html_to_text(substr($from, $from_offset, $from_len)), 80, "  [+] ", "\n");
+    echo regression_wrap_text(drupal_html_to_text(substr($from, $from_offset, $from_len)), $fragment_length, " [+] ", "\n");
     echo "\n\n";
   }
 }
@@ -1065,17 +1158,21 @@ function regression_render_diff_opcode_text($opcode, $from, $from_offset, $from_
  *   Old revision.
  * @param RegressionRevision $new
  *   New revision.
+ * @param array $ignores
+ *   List of custom ignores to use instead of configured ones.
+ * @param number $fragment_length
+ * @param number $num_differences
  */
-function regression_diff_revisions(RegressionRevision $old = NULL, RegressionRevision $new, $use_html = TRUE) {
+function regression_diff_revisions(RegressionRevision $old = NULL, RegressionRevision $new, $use_html = TRUE, $ignores = NULL, $fragment_length = 0, &$num_differences) {
   module_load_include('php', 'regression', 'libraries/finediff/finediff');
   
-  $diff = new FineDiff($old !== NULL ? $old->parser_value_plain_text : '', $new->parser_value_plain_text, FineDiff::$characterGranularity);
+  $ignores = regression_revision_perform_ignores($new, $ignores);
   
-  ob_start();
-  FineDiff::renderFromOpcodes($old !== NULL ? $old->parser_value_plain_text : '', $diff->getOpcodes(), $use_html ? 'regression_render_diff_opcode_html' : 'regression_render_diff_opcode_text');
-  $diff_text = ob_get_clean();
-  
+  $diff_text = regression_render_diff($old ? $old->parser_value_plain_text : '', $new->parser_value_plain_text, $use_html, $ignores, $num_differences, $fragment_length);
   $diff_text = preg_replace('/\\x([a-fA-F0-9]{2})/', '&#$1;', $diff_text);
+
+  
+  $finediff_ignores = NULL;
   
   return $diff_text;
 }

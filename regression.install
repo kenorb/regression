@@ -100,6 +100,11 @@ function regression_schema() {
         'type'        => 'text',
         'size'        => 'medium',
       ),
+      'ignores_regex' => array(
+        'description' => 'List of ignored expressions in Regex format separated by newline',
+        'type'        => 'text',
+        'size'        => 'medium',
+      ),
 /*
       'notifications_override' => array(
         'description' => 'Indicates if global notification options should be overriden by custom ones',
@@ -307,6 +312,11 @@ function regression_schema() {
         'type'        => 'int',
         'not null'    => TRUE,
         'default'     => 0,
+      ),
+      'ignores_regex' => array(
+        'description' => 'List of ignored expressions in Regex format separated by newline',
+        'type'        => 'text',
+        'size'        => 'medium',
       ),
     ),
     'primary key' => array('pid'),

@@ -4,7 +4,9 @@ class RegressionRevision extends Entity {
    
   public
     $pid,
+    $entry_id,
     $path,
+    $settings,
     $path_args,
     $revision_id,
     $previous_revision_id,
@@ -18,6 +20,27 @@ class RegressionRevision extends Entity {
   public function __construct($values = array()) {
     // Following construction mean that the regression_regression_revision_* handlers will be used to manage this entity
     parent::__construct($values, 'regression_revision'); 
+  }
+  
+  /**
+   * Returns related regression entry record.
+   * @return RegressionEntry
+   */
+  public function get_entry() {
+    return regression_entry_load($this->entry_id);
+  }
+  
+  /**
+   * Returns related regression path configuration record.
+   * @return stdClass
+   */
+  public function get_path_configuration() {
+    return (object)db_select('regression_path_configuration', 'RC')
+      ->fields('RC', array('settings', 'enabled', 'ignores_regex'))
+      ->condition('path', $this->path)
+      ->range(0, 1)
+      ->execute()
+      ->fetchAssoc();    
   }
   
 }

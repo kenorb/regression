@@ -14,8 +14,8 @@ function regression_take_action_form() {
 
   if (arg(0) == 'system' && arg(1) == 'ajax') {
     $ajax                   = TRUE;
-    list($form, $form_state, $form_id, $form_build_id) = ajax_get_form(); 
-    $revision_pid            = arg(5, $form['#action']);
+    list($ajax_form, $ajax_form_state, $ajax_form_id, $ajax_form_build_id) = ajax_get_form(); 
+    $revision_pid            = arg(5, $ajax_form['#action']);
   }
   else {
     $ajax                   = FALSE;
@@ -70,6 +70,7 @@ function regression_take_action_form() {
       '#title'         => 'Available actions',
       '#type'          => 'radios',
       '#default_value' => 'approve',
+      '#description'   => '',
       '#options'       => array(
         'approve'    => t('Approve the change and set the page as default'),
         'ignore'     => t('Mark that change as dynamic (ignore it in the future)'),
@@ -170,11 +171,28 @@ function regression_take_action_form() {
     '#weight'        => 6,
   );
   
+  if ($ajax) {
+    $ignores = array(
+      'regex' => array_merge(
+        explode("\n", $ajax_form_state['input']['ignores_regexes_path_configuration']),
+        explode("\n", $ajax_form_state['input']['ignores_regexes_page_entry'])
+      )
+    );
+  }
+  
+  $num_differences = 0;
+  
+  if ($last_working_revision !== $revision) {
+    $diff_text = regression_diff_revisions($last_working_revision, $revision, TRUE, $ajax ? $ignores : NULL, 0, $num_differences);
+  }
+  
+  if ($last_working_revision === $revision || $num_differences == 0) {
+    $diff_text = t('No difference detected.');
+  }
+  
   $form['regression_ignores']['left']['regression_take_action_changes']['diff'] = array(
     '#type'          => 'item',
-    '#markup'        => '<div class="diff">' . nl2br(
-      ($last_working_revision !== $revision) ? regression_diff_revisions($last_working_revision, $revision) : t('No difference detected.')
-     ) . '</div>',
+    '#markup'        => '<div class="diff">' . nl2br($diff_text) . '</div>',
   );
 
   $form['regression_ignores']['right'] = array(
@@ -193,6 +211,7 @@ function regression_take_action_form() {
     '#title'  => 'List of ignored expressions for pages grouped by menu path',
     '#type'   => 'textarea',
     '#rows'   => 4,
+    '#default_value' => $entry->get_path_configuration()->ignores_regex,
     '#ajax' => array(
       'callback' => 'regression_ajax_changes_diff',
       'wrapper'  => 'changes_diff',
@@ -200,10 +219,16 @@ function regression_take_action_form() {
     ),
   );
   
-  $form['regression_ignores']['right']['ignores_regexes_page_revisions'] = array(
+  $form['regression_ignores']['right']['ignores_regexes_page_entry'] = array(
     '#title'  => 'List of ignored expressions for page revisions',
     '#type'   => 'textarea',
     '#rows'   => 4,
+    '#default_value' => $entry->ignores_regex,
+    '#ajax' => array(
+      'callback' => 'regression_ajax_changes_diff',
+      'wrapper'  => 'changes_diff',
+      'method'   => 'html',
+    ),
   );
   
   $form = system_settings_form($form);
@@ -228,6 +253,9 @@ function regression_take_action_form() {
           break;
         case REGRESSION_ENTRY_STATE_BROKEN:
           $state_text = t('broken');
+          break;
+        case REGRESSION_ENTRY_STATE_IGNORED:
+          $state_text = t('ignored');
           break;
         case REGRESSION_ENTRY_STATE_REGRESSION:
           $state_text = t('a regression');
@@ -277,6 +305,17 @@ function regression_take_action_form_submit($form, &$form_state) {
   $entry->related_module_name     = check_plain($form_state['input']['description_module_name']);
   $entry->related_bug_tracker_url = check_plain($form_state['input']['description_bug_tracker_url']);
   $entry->assignee                = check_plain($form_state['input']['assignee']);
+  $entry->ignores_regex           = check_plain($form_state['input']['ignores_regexes_page_entry']);
+  
+  $path_configuration_entity      = $entry->get_path_configuration();
+  $path_configuration_entity->ignores_regex = check_plain($form_state['input']['ignores_regexes_path_configuration']);
+  
+  db_update('regression_path_configuration')
+    ->condition('pid', $path_configuration_entity->pid)
+    ->fields(array(
+      'ignores_regex' => $path_configuration_entity->ignores_regex
+    ))
+    ->execute();
   
   switch ($form_state['input']['actions']) {
     case 'approve':
@@ -286,6 +325,9 @@ function regression_take_action_form_submit($form, &$form_state) {
       break;
     
     case 'ignore':
+      $entry->state                        = REGRESSION_ENTRY_STATE_IGNORED;
+      $entry->current_working_revision_id  = $revision->revision_id;
+      $entry->current_working_revision_pid = $revision->pid;
       break;
     
     case 'regression':

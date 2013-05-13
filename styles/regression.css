@@ -1,0 +1,51 @@
+/**
+ * Regression module stylesheet.
+ */
+
+.diff {
+ color: rgba(0,0,0,0.5);
+ -ms-word-break: break-all;
+ word-break: break-all;
+ word-break: break-word;
+ -webkit-hyphens: auto;
+ -moz-hyphens: auto;
+ hyphens: auto;
+ border: 2px solid #ff6;
+ padding: 7px 10px;
+ background: #ffa;
+ height: 534px;
+ overflow-y: scroll;
+}
+
+fieldset#edit-regression-take-action-changes {
+}
+
+form#regression-paths-form .url,
+form#regression-take-action-form .url {
+  margin: 5px 0px 15px 2px;
+  font-weight: bold;
+}
+
+form#regression-status-form .state {
+  padding: 6px 10px;
+  font-weight: bold;
+  border-radius: 9px;
+  text-align: center;
+}
+
+form#regression-status-form .state-awaiting-approval {
+  background: #ccc;
+}
+
+form#regression-status-form .state-approved {
+  background: #af3;
+}
+
+form#regression-status-form .state-regression {
+  background: #f80;
+}
+
+form#regression-status-form .state-broken {
+  color: #fff;
+  background: #f00;
+}

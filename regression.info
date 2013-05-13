@@ -1,5 +1,14 @@
 name = Regression
-description = Analyse the website for regressions.
+description = Page regression testing
 core = 7.x
-package = Development
-php = 5.3
+package = Regression
+php = 5.2.4
+version = 7.x-0.1
+project = regression
+dependencies[] = ctools
+dependencies[] = entity
+dependencies[] = html2txt
+dependencies[] = strongarm
+enhances[] = mimemail
+features[ctools][] = strongarm:strongarm:1
+features[features_api][] = api:1

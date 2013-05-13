@@ -2,25 +2,18 @@
 
 /**
  * @file
- *   Regression installation file.
+ * Regression installation file.
  */
 
 /**
- * Implements hook_install().
- */
-function regression_install() {
-}
-
-/**
- * Implements hook_install().
+ * Implements hook_uninstall().
  */
 function regression_uninstall() {
-  // Clear the variables
+  // Clear the variables.
   db_delete('variable')
-    ->condition('name', 'regression_%', 'LIKE') // FIXME: what about regression_remote vars?
+    // FIXME: what about regression_remote vars?
+    ->condition('name', 'regression_%', 'LIKE')
     ->execute();
-
-  db_drop_table('cache_regression');
 }
 
 /**
@@ -28,19 +21,6 @@ function regression_uninstall() {
  */
 function regression_enable() {
   module_load_include('module', 'regression');
-  mailsystem_set(
-    array(
-      mailsystem_default_id() => 'RegressionMailSystem',
-      'mimemail'              => 'RegressionMailSystem',
-    )
-  );
-}
-
-/**
- * Implements hook_disable().
- */
-function regression_disable() {
-  mailsystem_clear(array('regression' => 'RegressionMailSystem'));
 }
 
 /**
@@ -50,7 +30,7 @@ function regression_schema() {
   $schema = array();
   $schema['cache_regression'] = drupal_get_schema_unprocessed('system', 'cache');
   $schema['cache_regression']['description'] = 'Generic cache table for caching regression module data.';
-  
+
   $schema['regression_path_configuration'] = array(
     'description' => 'Regression path configuration',
     'fields' => array(
@@ -83,18 +63,6 @@ function regression_schema() {
         'type'        => 'varchar',
         'length'      => 255,
       ),
-/*
-      'key_override' => array(
-        'description' => 'Indicates if global key options should be overriden by custom ones',
-        'type'        => 'int',
-        'unsigned'    => TRUE,
-        'not null'    => TRUE,
-      ),
-      'key' => array(
-        'description' => 'Built-in key segments configurations in JSON format',
-        'type'        => 'text',
-      ),
-*/
       'settings' => array(
         'description' => 'Path configuration in JSON format',
         'type'        => 'text',
@@ -105,18 +73,6 @@ function regression_schema() {
         'type'        => 'text',
         'size'        => 'medium',
       ),
-/*
-      'notifications_override' => array(
-        'description' => 'Indicates if global notification options should be overriden by custom ones',
-        'type'        => 'int',
-        'unsigned'    => TRUE,
-        'not null'    => TRUE,
-      ),
-      'notifications_emails' => array(
-        'description' => 'List of e-mails separated by newline character',
-        'type'        => 'text',
-      ),
-*/
       'created' => array(
         'description' => 'The Unix timestamp when the record was created.',
         'type'        => 'int',
@@ -125,11 +81,10 @@ function regression_schema() {
     ),
     'primary key' => array('pid'),
     'indexes' => array(
-      'index_path'                 => array('path'),
-    )
+      'index_path' => array('path'),
+    ),
   );
-  
-  
+
   $schema['regression_revision'] = array(
     'description' => 'Regression entry revisions',
     'fields' => array(
@@ -217,9 +172,9 @@ function regression_schema() {
     'indexes'     => array(
       'index_path'          => array('path'),
       'index_entry_id'      => array('entry_id'),
-    )
+    ),
   );
-  
+
   $schema['regression_entry'] = array(
     'description' => 'Regression entry',
     'fields' => array(
@@ -232,7 +187,7 @@ function regression_schema() {
       'key_hash' => array(
         'description' => 'Unique entry key based on the SHA1 sum of hook_regression_build_key function result',
         'type'        => 'varchar',
-        'length'      => 40
+        'length'      => 40,
       ),
       'path' => array(
         'description' => 'Path to the page',
@@ -324,9 +279,37 @@ function regression_schema() {
       'index_path'                => array('path'),
       'index_key_hash'            => array('key_hash'),
       'index_current_revision_id' => array('current_revision_id'),
-    )
+    ),
   );
-  
+
   return $schema;
 }
 
+/**
+ * Implements hook_requirements().
+ */
+function regression_requirements($phase) {
+  $requirements = array();
+  // Ensure translations don't break at install time.
+  $t = get_t();
+
+  // Test dependencies.
+  if ($path = libraries_get_path('finediff')) {
+    // Dependencies met.
+    $requirements['regression']['value'] = $t('OK');
+  }
+  else {
+    // Dependencies not met.
+    $requirements['regression'] = array(
+      'description' => $t('Regression module requires !link library to work correctly. Please place its <b>finediff-code.php</b> file inside the <b>sites/all/libraries/finediff</b> folder.', array(
+        '!link' => l($t('FineDiff'), 'http://www.raymondhill.net/finediff/finediff-code.php'),
+      )),
+      'severity'    => REQUIREMENT_ERROR,
+      'value'       => $t('Missing dependency'),
+    );
+  }
+
+  $requirements['regression']['title'] = $t('Regression');
+
+  return $requirements;
+}

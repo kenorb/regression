@@ -1,9 +1,14 @@
 <?php
 
+/**
+ * @file
+ * RegressionRevision entity include file.
+ */
+
 require_once 'regression.regression_revision.controller.inc';
 
 /**
- * Entity general information
+ * Entity general information.
  */
 function regression_regression_revision_entity_info(&$info) {
   $info['regression_revision'] = array(
@@ -16,11 +21,11 @@ function regression_regression_revision_entity_info(&$info) {
     'label callback'   => 'entity_class_label',
     'fieldable'        => TRUE,
     'entity keys' => array(
-      'id' => 'pid'
+      'id' => 'pid',
     ),
     'static cache' => TRUE,
     'bundles' => array(
-      'regression_revision'=> array(
+      'regression_revision' => array(
         'label' => 'Regression Revision',
         'admin' => array(
           'path'             => 'admin/structure/regression-revisions',
@@ -31,7 +36,7 @@ function regression_regression_revision_entity_info(&$info) {
     'view modes' => array(
       'full' => array(
         'label'           => t('Full Regression Revision'),
-        'custom settings' =>  FALSE,
+        'custom settings' => FALSE,
       ),
     ),
     'admin ui' => array(
@@ -39,9 +44,9 @@ function regression_regression_revision_entity_info(&$info) {
       'file'             => 'regression.regression_revision.controller.inc',
       'controller class' => 'RegressionRevisionUIController',
     ),
-      
+
   );
-  
+
   // Support entity cache module.
   if (module_exists('entitycache')) {
     $info['regression_revision']['field cache']  = FALSE;
@@ -54,10 +59,8 @@ function regression_regression_revision_entity_info(&$info) {
  */
 function regression_regression_revision_field_extra_fields(&$return) {
   $return['regression_revision']['regression_revision'] = array(
-    'form' => array(
-    ),
-    'display' => array(
-    ),
+    'form' => array(),
+    'display' => array(),
   );
 }
 
@@ -66,15 +69,6 @@ function regression_regression_revision_field_extra_fields(&$return) {
  */
 function regression_regression_revision_entity_property_info_alter(&$info) {
   $properties = &$info['regression_revision']['properties'];
-}
-
-function regression_field_regression_revision_link_view() {
-}
-
-function regression_field_regression_revision_link_edit() {
-}
-
-function regression_field_regression_revision_link_delete() {
 }
 
 /**
@@ -89,12 +83,15 @@ function regression_regression_revision_info() {
  */
 function regression_regression_revision_uri($entity) {
   return array(
-    'path' => 'regression/take-action/' . $entity -> uuid,
+    'path' => 'regression/take-action/' . $entity->uuid,
   );
 }
 
+/**
+ * Returns regression revision record title.
+ */
 function regression_regression_revision_page_title($entity) {
-  return $entity -> pid;
+  return $entity->pid;
 }
 
 /**
@@ -103,28 +100,27 @@ function regression_regression_revision_page_title($entity) {
 function regression_regression_revision_page_view($entity, $view_mode = 'full') {
   // Our entity type, for convenience.
   $entity_type = 'regression_revision';
-  
+
   // Start setting up the content.
   $entity->content = array(
     '#view_mode' => $view_mode,
   );
-  
+
   // Build fields content - this is where the Field API really comes in to play.
   // field_attach_prepare_view() lets the fields load any data they need
   // before viewing.
   field_attach_prepare_view($entity_type, array($entity->pid => $entity), $view_mode);
-  
+
   // We call entity_prepare_view() so it can invoke hook_entity_prepare_view()
   // for us.
   entity_prepare_view($entity_type, array($entity->pid => $entity));
-  
-  
+
   // Now field_attach_view() generates the content for the fields.
   $entity->content += field_attach_view($entity_type, $entity, $view_mode);
 
-  return $entity -> content;
+  return $entity->content;
 }
-  
+
 /**
  * Form of entity edit.
  */
@@ -139,13 +135,19 @@ function regression_regression_revision_form_remove($form, &$form_state, $entity
   return $form;
 }
 
+/**
+ * Action of regression revision deletion.
+ */
 function regression_regression_revision_edit_delete($form, &$form_state) {
 }
 
+/**
+ * Action of regression revision saving.
+ */
 function regression_regression_revision_edit_save($form, &$form_state) {
   return $form;
 }
-  
+
 /**
  * Form of entity creation.
  */
@@ -166,33 +168,33 @@ function regression_regression_revision_form_validate($form, &$form_state) {
 function regression_regression_revision_form_submit($form, &$form_state) {
 }
 
+/**
+ * Submission handler for regression revision adding page.
+ */
 function regression_regression_revision_form_add($input) {
   return drupal_get_form('regression_regression_revision_form', $entity, $input);
 }
 
 /**
- * Provides a list of existing entities and the ability to add more. Tabs
- * provide field and display management.
+ * Provides a list of existing entities and the ability to add more.
+ *
+ * Tabs provide field and display management.
  */
 function regression_regression_revision_admin_page() {
   $content = array();
   $content[] = array(
     '#type' => 'item',
-    '#markup' => t('Administration page for regression revisions.')
+    '#markup' => t('Administration page for regression revisions.'),
   );
-  
-/*
-  $content[] = array(
-    '#type' => 'item',
-    '#markup' => l(t('Add booking'), 'booking/add'),
-  );
-*/
 
   $content['table'] = regression_regression_revision_list_entities();
 
   return $content;
 }
 
+/**
+ * Returns list of regression revision entries.
+ */
 function regression_regression_revision_list_entities() {
   return array();
 }
@@ -236,11 +238,12 @@ function regression_regression_revision_access($op, $task, $account = NULL, $ent
  * the path: examples/entity_example/basic/%entity_example_basic in
  * hook_menu() tells Drupal to call entity_example_basic_load().
  *
- * @param $basic_id
+ * @param number $basic_id
  *   Integer specifying the basic entity id.
- * @param $reset
+ * @param bool $reset
  *   A boolean indicating that the internal cache should be reset.
- * @return
+ *
+ * @return RegressionRevision
  *   A fully-loaded $basic object or FALSE if it cannot be loaded.
  *
  * @see entity_example_basic_load_multiple()
@@ -253,27 +256,6 @@ function regression_revision_load($basic_id = NULL, $reset = FALSE) {
 }
 
 /**
- * Loads a single regression revision.
- *
- * @param $pid
- *   Integer specifying the entity id.
- * @param $reset
- *   A boolean indicating that the internal cache should be reset.
- * @return
- *   A fully-loaded $basic object or FALSE if it cannot be loaded.
- *
- * @see entity_example_basic_load_multiple()
- * @see entity_example_menu()
- */
-/*
-function regression_regression_revision_load($pid = NULL, $reset = FALSE) {
-  $ids = (isset($pid) ? array($pid) : array());
-  $res = regression_regression_revision_load_multiple($ids, array(), $reset);
-  return $res ? reset($res) : FALSE;
-}
-*/
-
-/**
  * Loads multiple basic entities.
  *
  * We only need to pass this request along to entity_load(), which
@@ -282,18 +264,18 @@ function regression_regression_revision_load($pid = NULL, $reset = FALSE) {
  * @see entity_load()
  * @see EntityFieldQuery
  *
- * @param $pids
+ * @param array $pids
  *   An array of regression revision IDs.
- * @param $conditions
- *   (deprecated) An associative array of conditions on the {node}
+ * @param array $conditions
+ *   (deprecated) An associative array of conditions on the node
  *   table, where the keys are the database fields and the values are the
  *   values those fields must have. Instead, it is preferable to use
  *   EntityFieldQuery to retrieve a list of entity IDs loadable by
  *   this function.
- * @param $reset
+ * @param bool $reset
  *   Whether to reset the internal node_load cache.
  *
- * @return
+ * @return array
  *   An array of node objects indexed by ids.
  */
 function regression_regression_revision_load_multiple($pids = array(), $conditions = array(), $reset = FALSE) {
@@ -301,23 +283,23 @@ function regression_regression_revision_load_multiple($pids = array(), $conditio
 }
 
 /**
-* Saves regression revision entity.
-*/
+ * Saves regression revision entity.
+ */
 function regression_regression_revision_save($entity) {
   entity_save('regression_revision', $entity);
   return $entity;
 }
 
 /**
-* Deletes a single regression revisions.
-*/
+ * Deletes a single regression revisions.
+ */
 function regression_regression_revision_delete($id) {
-  entity_delete('regression_revision', entity_id('regression_revision' ,$id));
+  entity_delete('regression_revision', entity_id('regression_revision', $id));
 }
 
 /**
-* Deletes multiple regression revisions.
-*/
+ * Deletes multiple regression revisions.
+ */
 function regression_regression_revision_delete_multiple($ids) {
   entity_delete_multiple('regression_revision', $ids);
 }

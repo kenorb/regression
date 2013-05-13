@@ -13,9 +13,9 @@ function regression_advanced_form() {
   // Source Parsers.
   $form['regression_advanced']['parsers'] = array(
     '#title' => t('Enabled source parsers'),
-    '#type'  => 'fieldset'
+    '#type'  => 'fieldset',
   );
-  
+
   // Source Parsers / HTML.
   $form['regression_advanced']['parsers']['regression_advanced_enabled_parsers_html'] = array(
     '#title'         => t('HTML'),
@@ -29,14 +29,13 @@ function regression_advanced_form() {
     '#type'          => 'checkbox',
     '#default_value' => variable_get('regression_advanced_enabled_parsers_plain_text', TRUE),
   );
-  
+
   // Source Parsers / Markdown.
   $form['regression_advanced']['parsers']['regression_advanced_enabled_parsers_markdown'] = array(
     '#title'         => t('Markdown'),
     '#type'          => 'checkbox',
     '#default_value' => variable_get('regression_advanced_enabled_parsers_markdown', FALSE),
   );
-  
 
   $form = system_settings_form($form);
 

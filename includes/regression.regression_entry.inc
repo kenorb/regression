@@ -1,9 +1,14 @@
 <?php
 
+/**
+ * @file
+ * RegressionEntry entity include file.
+ */
+
 require_once 'regression.regression_entry.controller.inc';
 
 /**
- * Entity general information
+ * Entity general information.
  */
 function regression_regression_entry_entity_info(&$info) {
   $info['regression_entry'] = array(
@@ -16,11 +21,11 @@ function regression_regression_entry_entity_info(&$info) {
     'label callback'   => 'entity_class_label',
     'fieldable'        => TRUE,
     'entity keys' => array(
-      'id' => 'pid'
+      'id' => 'pid',
     ),
     'static cache' => TRUE,
     'bundles' => array(
-      'regression_entry'=> array(
+      'regression_entry' => array(
         'label' => 'Regression Entry',
         'admin' => array(
           'path'             => 'admin/structure/regression-entries',
@@ -31,7 +36,7 @@ function regression_regression_entry_entity_info(&$info) {
     'view modes' => array(
       'full' => array(
         'label'           => t('Full Regression Entry'),
-        'custom settings' =>  FALSE,
+        'custom settings' => FALSE,
       ),
     ),
     'admin ui' => array(
@@ -39,9 +44,9 @@ function regression_regression_entry_entity_info(&$info) {
       'file'             => 'regression.regression_entry.controller.inc',
       'controller class' => 'RegressionEntryUIController',
     ),
-      
+
   );
-  
+
   // Support entity cache module.
   if (module_exists('entitycache')) {
     $info['regression_entry']['field cache']  = FALSE;
@@ -166,7 +171,7 @@ function regression_regression_entry_field_extra_fields(&$return) {
  */
 function regression_regression_entry_entity_property_info_alter(&$info) {
   $properties = &$info['regression_entry']['properties'];
-  
+
   $properties['revision'] = array(
     'label' => t('Revision'),
     'type' => 'text',
@@ -175,7 +180,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'created',
   );
-  
+
   $properties['uuid'] = array(
     'label' => t("UUID"),
     'type' => 'text',
@@ -184,7 +189,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'created',
   );
-  
+
   $properties['created'] = array(
     'label' => t("Date created"),
     'type' => 'date',
@@ -193,7 +198,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'created',
   );
-  
+
   $properties['updated'] = array(
     'label' => t("Date created"),
     'type' => 'date',
@@ -202,7 +207,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'updated',
   );
-  
+
   $properties['path'] = array(
     'label' => t("Page path"),
     'type' => 'date',
@@ -211,7 +216,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'path',
   );
-  
+
   $properties['parser_value_html'] = array(
     'label' => t('Parser value: Original HTML'),
     'type' => 'text',
@@ -220,7 +225,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'updated',
   );
-            
+
   $properties['parser_value_plain_text'] = array(
     'label' => t('Parser value: Plain text'),
     'type' => 'text',
@@ -229,7 +234,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'updated',
   );
-  
+
   $properties['parser_value_markdown'] = array(
     'label' => t('Parser value: Markdown'),
     'type' => 'text',
@@ -238,7 +243,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'setter permission' => 'administer nodes',
     'schema field' => 'updated',
   );
-  
+
   // Links:
   $properties['view_link'] = array(
     'label' => t('View link'),
@@ -247,7 +252,7 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'getter callback' => 'regression_field_regression_entry_link_view',
     'computed' => TRUE,
   );
-  
+
   $properties['edit_link'] = array(
     'label' => t('Edit link'),
     'type' => 'text',
@@ -255,24 +260,15 @@ function regression_regression_entry_entity_property_info_alter(&$info) {
     'getter callback' => 'regression_field_regression_entry_link_edit',
     'computed' => TRUE,
   );
-  
+
   $properties['delete_link'] = array(
     'label' => t('Delete link'),
     'type' => 'text',
     'description' => t('Provide a simple link to delete the entity.'),
     'getter callback' => 'regression_field_regression_entry_link_delete',
     'computed' => TRUE,
-  );  
-  
-}
+  );
 
-function regression_field_regression_entry_link_view() {
-}
-
-function regression_field_regression_entry_link_edit() {
-}
-
-function regression_field_regression_entry_link_delete() {
 }
 
 /**
@@ -287,12 +283,15 @@ function regression_regression_entry_info() {
  */
 function regression_regression_entry_uri($entity) {
   return array(
-    'path' => 'regression/take-action/' . $entity -> uuid,
+    'path' => 'regression/take-action/' . $entity->uuid,
   );
 }
 
+/**
+ * Returns entry's page title.
+ */
 function regression_regression_entry_page_title($entity) {
-  return $entity -> pid;
+  return $entity->pid;
 }
 
 /**
@@ -301,28 +300,27 @@ function regression_regression_entry_page_title($entity) {
 function regression_regression_entry_page_view($entity, $view_mode = 'full') {
   // Our entity type, for convenience.
   $entity_type = 'regression_entry';
-  
+
   // Start setting up the content.
   $entity->content = array(
     '#view_mode' => $view_mode,
   );
-  
+
   // Build fields content - this is where the Field API really comes in to play.
   // field_attach_prepare_view() lets the fields load any data they need
   // before viewing.
   field_attach_prepare_view($entity_type, array($entity->pid => $entity), $view_mode);
-  
+
   // We call entity_prepare_view() so it can invoke hook_entity_prepare_view()
   // for us.
   entity_prepare_view($entity_type, array($entity->pid => $entity));
-  
-  
+
   // Now field_attach_view() generates the content for the fields.
   $entity->content += field_attach_view($entity_type, $entity, $view_mode);
 
-  return $entity -> content;
+  return $entity->content;
 }
-  
+
 /**
  * Form of entity edit.
  */
@@ -337,13 +335,20 @@ function regression_regression_entry_form_remove($form, &$form_state, $entity) {
   return $form;
 }
 
+/**
+ * Action of regression entry deletion.
+ */
 function regression_regression_entry_edit_delete($form, &$form_state) {
+  return $form;
 }
 
+/**
+ * Action of regression entry saving.
+ */
 function regression_regression_entry_edit_save($form, &$form_state) {
   return $form;
 }
-  
+
 /**
  * Form of entity creation.
  */
@@ -362,35 +367,36 @@ function regression_regression_entry_form_validate($form, &$form_state) {
  * Submission handler for the entity creation page.
  */
 function regression_regression_entry_form_submit($form, &$form_state) {
+  // Function left empty intentionally.
 }
 
+/**
+ * Submission handler for regression entry adding page.
+ */
 function regression_regression_entry_form_add($input) {
   return drupal_get_form('regression_regression_entry_form', $entity, $input);
 }
 
 /**
- * Provides a list of existing entities and the ability to add more. Tabs
- * provide field and display management.
+ * Provides a list of existing entities and the ability to add more.
+ *
+ * Tabs provide field and display management.
  */
 function regression_regression_entry_admin_page() {
   $content = array();
   $content[] = array(
     '#type' => 'item',
-    '#markup' => t('Administration page for regression entries.')
+    '#markup' => t('Administration page for regression entries.'),
   );
-  
-/*
-  $content[] = array(
-    '#type' => 'item',
-    '#markup' => l(t('Add booking'), 'booking/add'),
-  );
-*/
 
   $content['table'] = regression_regression_entry_list_entities();
 
   return $content;
 }
 
+/**
+ * Returns list of regression entries.
+ */
 function regression_regression_entry_list_entities() {
   return array();
 }
@@ -434,10 +440,11 @@ function regression_regression_entry_access($op, $task, $account = NULL, $entity
  * the path: examples/entity_example/basic/%entity_example_basic in
  * hook_menu() tells Drupal to call entity_example_basic_load().
  *
- * @param $basic_id
+ * @param number $basic_id
  *   Integer specifying the basic entity id.
- * @param $reset
+ * @param bool $reset
  *   A boolean indicating that the internal cache should be reset.
+ *
  * @return RegressionEntry
  *   A fully-loaded $basic object or FALSE if it cannot be loaded.
  *
@@ -451,27 +458,6 @@ function regression_entry_load($basic_id = NULL, $reset = FALSE) {
 }
 
 /**
- * Loads a single regression entry.
- *
- * @param $pid
- *   Integer specifying the entity id.
- * @param $reset
- *   A boolean indicating that the internal cache should be reset.
- * @return
- *   A fully-loaded $basic object or FALSE if it cannot be loaded.
- *
- * @see entity_example_basic_load_multiple()
- * @see entity_example_menu()
- */
-/*
-function regression_regression_entry_load($pid = NULL, $reset = FALSE) {
-  $ids = (isset($pid) ? array($pid) : array());
-  $res = regression_regression_entry_load_multiple($ids, array(), $reset);
-  return $res ? reset($res) : FALSE;
-}
-*/
-
-/**
  * Loads multiple basic entities.
  *
  * We only need to pass this request along to entity_load(), which
@@ -480,18 +466,18 @@ function regression_regression_entry_load($pid = NULL, $reset = FALSE) {
  * @see entity_load()
  * @see EntityFieldQuery
  *
- * @param $pids
+ * @param array $pids
  *   An array of regression entry IDs.
- * @param $conditions
- *   (deprecated) An associative array of conditions on the {node}
+ * @param array $conditions
+ *   (deprecated) An associative array of conditions on the node
  *   table, where the keys are the database fields and the values are the
  *   values those fields must have. Instead, it is preferable to use
  *   EntityFieldQuery to retrieve a list of entity IDs loadable by
  *   this function.
- * @param $reset
+ * @param bool $reset
  *   Whether to reset the internal node_load cache.
  *
- * @return
+ * @return array
  *   An array of node objects indexed by ids.
  */
 function regression_regression_entry_load_multiple($pids = array(), $conditions = array(), $reset = FALSE) {
@@ -499,23 +485,23 @@ function regression_regression_entry_load_multiple($pids = array(), $conditions 
 }
 
 /**
-* Saves regression entry entity.
-*/
+ * Saves regression entry entity.
+ */
 function regression_regression_entry_save($entity) {
   entity_save('regression_entry', $entity);
   return $entity;
 }
 
 /**
-* Deletes a single regression entries.
-*/
+ * Deletes a single regression entries.
+ */
 function regression_regression_entry_delete($id) {
-  entity_delete('regression_entry', entity_id('regression_entry' ,$id));
+  entity_delete('regression_entry', entity_id('regression_entry', $id));
 }
 
 /**
-* Deletes multiple regression entries.
-*/
+ * Deletes multiple regression entries.
+ */
 function regression_regression_entry_delete_multiple($ids) {
   entity_delete_multiple('regression_entry', $ids);
 }

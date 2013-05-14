@@ -2,23 +2,25 @@
 
 /**
  * @file
- *   Regression installation file.
+ * Regression installation file.
  */
 
 /**
- * Implements hook_install().
+ * Implements hook_uninstall().
  */
-function regression_install() {
+function regression_uninstall() {
+  // Clear the variables.
+  db_delete('variable')
+    // FIXME: what about regression_remote vars?
+    ->condition('name', 'regression_%', 'LIKE')
+    ->execute();
 }
 
 /**
- * Implements hook_install().
+ * Implements hook_enable().
  */
-function regression_uninstall() {
-  // Clear the variables
-  db_delete('variable')
-    ->condition('name', 'regression_%', 'LIKE') // FIXME: what about regression_remote vars?
-      ->execute();
+function regression_enable() {
+  module_load_include('module', 'regression');
 }
 
 /**
@@ -28,6 +30,286 @@ function regression_schema() {
   $schema = array();
   $schema['cache_regression'] = drupal_get_schema_unprocessed('system', 'cache');
   $schema['cache_regression']['description'] = 'Generic cache table for caching regression module data.';
+
+  $schema['regression_path_configuration'] = array(
+    'description' => 'Regression path configuration',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'ID of the record',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'ready' => array(
+        'description' => 'Indicates if path is ready for regression testing',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'default'     => '0',
+      ),
+      'enabled' => array(
+        'description' => 'Indicates if path is enabled for regression testing',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'default'     => '1',
+      ),
+      'visible' => array(
+        'description' => 'Indicates if path is visible in the paths list',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'default'     => '1',
+      ),
+      'path' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'settings' => array(
+        'description' => 'Path configuration in JSON format',
+        'type'        => 'text',
+        'size'        => 'medium',
+      ),
+      'ignores_regex' => array(
+        'description' => 'List of ignored expressions in Regex format separated by newline',
+        'type'        => 'text',
+        'size'        => 'medium',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the record was created.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes' => array(
+      'index_path' => array('path'),
+    ),
+  );
+
+  $schema['regression_revision'] = array(
+    'description' => 'Regression entry revisions',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'ID of the record',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'entry_id' => array(
+        'description' => 'ID of the related entry',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'revision_id' => array(
+        'description' => 'Sequential ID of the revision',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'previous_revision_id' => array(
+        'description' => 'ID of the previous revision',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'previous_revision_pid' => array(
+        'description' => 'ID of the previous revision record',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'path' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'uri' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'path_args' => array(
+        'description' => 'Page callback arguments values',
+        'type'        => 'text',
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the record was created.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+      'updated' => array(
+        'description' => 'The Unix timestamp when the record was updated.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+      'parser_value_html' => array(
+        'description' => 'Source parser value: Original HTML source',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_html_diff' => array(
+        'description' => 'Diff of html source parser',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_plain_text' => array(
+        'description' => 'Source parser value: Plain Text format',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_plain_text_diff' => array(
+        'description' => 'Diff of plain text source parser',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+      'parser_value_markdown' => array(
+        'description' => 'Source parser value: Markdown format',
+        'type'        => 'blob',
+        'size'        => 'big',
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes'     => array(
+      'index_path'          => array('path'),
+      'index_entry_id'      => array('entry_id'),
+    ),
+  );
+
+  $schema['regression_entry'] = array(
+    'description' => 'Regression entry',
+    'fields' => array(
+      'pid' => array(
+        'description' => 'ID of the record',
+        'type'        => 'serial',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'key_hash' => array(
+        'description' => 'Unique entry key based on the SHA1 sum of hook_regression_build_key function result',
+        'type'        => 'varchar',
+        'length'      => 40,
+      ),
+      'path' => array(
+        'description' => 'Path to the page',
+        'type'        => 'varchar',
+        'length'      => 255,
+      ),
+      'state' => array(
+        'description' => 'Current state of the page. See REGRESSION_ENTRY_STATE_* constants',
+        'type'        => 'int',
+        'unsigned'    => FALSE,
+        'not null'    => TRUE,
+      ),
+      'path_args' => array(
+        'description' => 'Page callback arguments values',
+        'type'        => 'text',
+      ),
+      'path_dynamic_args' => array(
+        'description' => 'List of dynamic arguments indexes',
+        'type'        => 'varchar',
+        'length'      => 32,
+      ),
+      'user_role_ids' => array(
+        'description' => 'User role IDs',
+        'type'        => 'varchar',
+        'length'      => 32,
+      ),
+      'current_revision_id' => array(
+        'description' => 'Current revision ID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'current_revision_pid' => array(
+        'description' => 'Current revision PID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+      ),
+      'current_working_revision_id' => array(
+        'description' => 'Currently(or previously) working revision ID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => FALSE,
+      ),
+      'current_working_revision_pid' => array(
+        'description' => 'Currently(or previously) working revision PID',
+        'type'        => 'int',
+        'unsigned'    => TRUE,
+        'not null'    => FALSE,
+      ),
+      'created' => array(
+        'description' => 'The Unix timestamp when the record was created.',
+        'type'        => 'int',
+        'not null'    => TRUE,
+      ),
+      'description' => array(
+        'description' => 'Text of the description',
+        'type'        => 'text',
+      ),
+      'related_module_name' => array(
+        'description' => 'Name of the related module',
+        'type'        => 'varchar',
+        'length'      => '64',
+      ),
+      'related_bug_tracker_url' => array(
+        'description' => 'URL to the bugtracker',
+        'type'        => 'varchar',
+        'length'      => '160',
+      ),
+      'assignee' => array(
+        'description' => 'Name of the user assigned to resolve the problem',
+        'type'        => 'varchar',
+        'length'      => '40',
+      ),
+      'priority' => array(
+        'description' => 'Priority of the entry resolution',
+        'type'        => 'int',
+        'not null'    => TRUE,
+        'default'     => 0,
+      ),
+      'ignores_regex' => array(
+        'description' => 'List of ignored expressions in Regex format separated by newline',
+        'type'        => 'text',
+        'size'        => 'medium',
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes' => array(
+      'index_path'                => array('path'),
+      'index_key_hash'            => array('key_hash'),
+      'index_current_revision_id' => array('current_revision_id'),
+    ),
+  );
+
   return $schema;
 }
 
+/**
+ * Implements hook_requirements().
+ */
+function regression_requirements($phase) {
+  $requirements = array();
+  // Ensure translations don't break at install time.
+  $t = get_t();
+
+  // Test dependencies.
+  if ($path = libraries_get_path('finediff')) {
+    // Dependencies met.
+    $requirements['regression']['value'] = $t('OK');
+  }
+  else {
+    // Dependencies not met.
+    $requirements['regression'] = array(
+      'description' => $t('Regression module requires !link library to work correctly. Please place its <b>finediff-code.php</b> file inside the <b>sites/all/libraries/finediff</b> folder.', array(
+        '!link' => l($t('FineDiff'), 'http://www.raymondhill.net/finediff/finediff-code.php'),
+      )),
+      'severity'    => REQUIREMENT_ERROR,
+      'value'       => $t('Missing dependency'),
+    );
+  }
+
+  $requirements['regression']['title'] = $t('Regression');
+
+  return $requirements;
+}

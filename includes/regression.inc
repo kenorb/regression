@@ -1,7 +1,6 @@
 <?php
 
 /**
- * Include file
- *
+ * @file
+ * Include file.
  */
-
